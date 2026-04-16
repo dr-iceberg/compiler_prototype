@@ -23,22 +23,27 @@ struct Token {
     st: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+enum BinOps {
+    Add,
+}
+
+#[derive(Debug, Clone)]
 enum Expr {
     Empty,
     Number(i64),
     Identifier(String),
     BinOp {
         left: Box<Expr>,
-        op: char,
+        op: BinOps,
         right: Box<Expr>,
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Stmt {
     Empty,
-    Assign { id: String, value: Expr },
+    Assign { id: String, expr: Expr },
 }
 
 #[derive(Debug)]
@@ -160,7 +165,7 @@ impl Parser {
                             self.next();
                             let stmt = Stmt::Assign {
                                 id: token1_st,
-                                value: self.parse_expr(),
+                                expr: self.parse_expr(),
                             };
                             stmts.push(stmt);
                         }
@@ -195,7 +200,7 @@ impl Parser {
                                 let right = Box::new(self.parse_expr());
                                 expr = Expr::BinOp {
                                     left: left,
-                                    op: op,
+                                    op: BinOps::Add,
                                     right: right,
                                 }
                             }
@@ -212,6 +217,30 @@ impl Parser {
 
         expr
     }
+}
+
+struct SemanticAnalyzer {
+    stmts: Vec<Stmt>,
+    id_table: Vec<String>,
+}
+
+impl SemanticAnalyzer {
+    fn check_program(&self) {
+        for stmt in self.stmts.iter() {
+            SemanticAnalyzer::check_stmt(stmt);
+        }
+    }
+
+    fn generate_id_table(&self) {}
+
+    fn check_stmt(stmt: &Stmt) {
+        match stmt {
+            Stmt::Assign { id, expr } => Self::check_expr(expr),
+            _ => {}
+        }
+    }
+
+    fn check_expr(expr: &Expr) {}
 }
 
 fn main() -> std::io::Result<()> {
