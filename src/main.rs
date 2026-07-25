@@ -2,6 +2,7 @@
 
 use compiler_prototype::tokenize::Lexer;
 use compiler_prototype::{grammar::*, parser::Parser};
+use std::error::Error;
 use std::io::BufReader;
 use std::{fs::File, io::Read};
 
@@ -30,7 +31,7 @@ impl SemanticAnalyzer {
     fn check_expr(expr: &Expr) {}
 }
 
-fn main() -> std::io::Result<()> {
+fn main() -> Result<(), Box<dyn Error>> {
     let file = File::open("src.txt")?;
     let mut buffer = String::new();
     {
@@ -40,7 +41,13 @@ fn main() -> std::io::Result<()> {
 
     let mut lexer = Lexer::new(buffer);
 
-    let tokens = lexer.tokenize().unwrap();
+    let tokens = match lexer.tokenize() {
+        Ok(tokens) => tokens,
+        Err(err) => {
+            eprintln!("Lexer error: {err}");
+            return Ok(());
+        }
+    };
 
     let mut parser = Parser {
         tokens: tokens.clone(),

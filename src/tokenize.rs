@@ -97,7 +97,7 @@ impl Lexer {
 
     pub fn tokenize(&mut self) -> Result<Vec<Token>, LexerError> {
         let mut tokens: Vec<Token> = vec![];
-        let mut line: u32 = 0;
+        let mut line: u32 = 1;
 
         let mut chars = self.buffer.chars().peekable();
 
@@ -109,10 +109,19 @@ impl Lexer {
                 let token = Lexer::parse_num(ch, &mut chars);
                 tokens.push(token);
             } else if ch == '=' {
-                tokens.push(Token {
-                    kind: TokenType::Equal,
-                    st: String::from("="),
-                });
+                if chars.peek() == Some(&ch) {
+                    if ch == '=' {
+                        tokens.push(Token {
+                            kind: TokenType::EqualEqual,
+                            st: String::from("=="),
+                        });
+                    }
+                } else {
+                    tokens.push(Token {
+                        kind: TokenType::Equal,
+                        st: String::from("="),
+                    });
+                }
             } else if ch == '+' {
                 tokens.push(Token {
                     kind: TokenType::Plus,
@@ -189,7 +198,7 @@ impl Display for LexerError {
                 write!(f, "Unexpected End of File")
             }
             UnexepectedChar(line, ch) => {
-                write!(f, "Line: {line}, Unexpected character: {ch}")
+                write!(f, "Line {line}, Unexpected character: {ch}")
             }
         }
     }
