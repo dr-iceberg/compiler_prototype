@@ -7,13 +7,13 @@ pub enum TokenType {
     Unknown,
 
     // literals
-    /// examples: asdf, _wersdf
+    /// examples: `asdf`, `_wersdf`
     Id,
-    /// examples 123, 1.5
+    /// examples: `123`, `1.5`
     Num,
-    /// examples: "sadfsadf"
+    /// examples: `"sadfsadf"`
     ///
-    /// for now it doesnt handle escape charaters like '\n'
+    /// for now it doesnt handle escape charaters like `'\n'`, `'\t'`, etc.
     Str,
 
     // single charater tokens
@@ -68,6 +68,7 @@ pub enum TokenType {
     For,
     While,
 
+    /// Its a keyword, for simplicity
     Print,
     Return,
     If,
