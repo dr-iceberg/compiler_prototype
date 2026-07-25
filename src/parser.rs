@@ -58,6 +58,7 @@ impl Parser {
         let mut expr = Expr::Empty;
         if let Some(token1) = self.get_token() {
             let lnum = token1.st.parse::<i64>().unwrap();
+            #[allow(clippy::single_match)]
             match token1.kind {
                 TokenType::Num => {
                     self.next();
@@ -69,9 +70,9 @@ impl Parser {
                                 let left = Box::new(lexpr);
                                 let right = Box::new(self.parse_expr());
                                 expr = Expr::BinOp {
-                                    left: left,
+                                    left,
                                     op: BinOps::Add,
-                                    right: right,
+                                    right,
                                 }
                             }
                             TokenType::Semicolon => {

@@ -12,7 +12,7 @@ pub enum TokenType {
     /// examples 123, 1.5
     Num,
     /// examples: "sadfsadf"
-    /// 
+    ///
     /// for now it doesnt handle escape charaters like '\n'
     Str,
 
@@ -32,7 +32,7 @@ pub enum TokenType {
     /// `*`
     Asterisk,
     /// `(`
-    LPar, 
+    LPar,
     /// `)`
     RPar,
     /// `{`
@@ -59,7 +59,6 @@ pub enum TokenType {
     LessEqual,
 
     // Keywords
-
     Let,
     Fn,
     Struct,
@@ -78,10 +77,7 @@ pub enum TokenType {
     True,
     False,
 
-
-
     EOF,
-
 }
 
 #[derive(Debug, Clone)]
@@ -132,17 +128,10 @@ impl Lexer {
                     kind: TokenType::Semicolon,
                     st: String::from(";"),
                 });
-            }
-            else if ch == '\n' {
+            } else if ch == '\n' {
                 line += 1;
-            }
-            else if ch == '\r' {
-
-            }
-            else if ch == ' ' {
-
-            }
-            else {
+            } else if ch == '\r' || ch == ' ' {
+            } else {
                 return Err(LexerError::UnexepectedChar(line, ch));
             }
         }
@@ -196,8 +185,12 @@ pub enum LexerError {
 impl Display for LexerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            UnexepectedEOF => { write!(f, "Unexpected End of File") },
-            UnexepectedChar(line, ch) => { write!(f, "Line: {line}, Unexpected character: {ch}") }
+            UnexepectedEOF => {
+                write!(f, "Unexpected End of File")
+            }
+            UnexepectedChar(line, ch) => {
+                write!(f, "Line: {line}, Unexpected character: {ch}")
+            }
         }
     }
 }

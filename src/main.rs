@@ -20,6 +20,7 @@ impl SemanticAnalyzer {
     fn generate_id_table(&self) {}
 
     fn check_stmt(stmt: &Stmt) {
+        #[allow(clippy::single_match)]
         match stmt {
             Stmt::Assign { id, expr } => Self::check_expr(expr),
             _ => {}
@@ -30,13 +31,12 @@ impl SemanticAnalyzer {
 }
 
 fn main() -> std::io::Result<()> {
-    let file = File::open("src.txt")?; 
+    let file = File::open("src.txt")?;
     let mut buffer = String::new();
     {
         let mut reader = BufReader::new(file);
         reader.read_to_string(&mut buffer)?;
     }
-    
 
     let mut lexer = Lexer::new(buffer);
 
