@@ -82,8 +82,24 @@ pub enum TokenType {
 
 #[derive(Debug, Clone)]
 pub struct Token {
-    pub kind: TokenType,
+    pub ty: TokenType,
     pub st: String,
+}
+
+impl Token {
+    pub fn new_type(ty: TokenType) -> Self {
+        let st: String = match ty {
+            TokenType::Equal => "=".to_string(),
+            TokenType::EqualEqual => "==".to_string(),
+            TokenType::Plus => "+".to_string(),
+            TokenType::Minus => "-".to_string(),
+            TokenType::Asterisk => "*".to_string(),
+            TokenType::Semicolon => ";".to_string(),
+            _ => "".to_string(),
+        };
+
+        Self { ty, st }
+    }
 }
 
 pub struct Lexer {
@@ -112,35 +128,22 @@ impl Lexer {
             } else if ch == '=' {
                 if chars.peek() == Some(&ch) {
                     if ch == '=' {
-                        tokens.push(Token {
-                            kind: TokenType::EqualEqual,
-                            st: String::from("=="),
-                        });
+                        tokens.push(Token::new_type(TokenType::EqualEqual));
                     }
                 } else {
-                    tokens.push(Token {
-                        kind: TokenType::Equal,
-                        st: String::from("="),
-                    });
+                    tokens.push(Token::new_type(TokenType::Equal));
                 }
             } else if ch == '+' {
-                tokens.push(Token {
-                    kind: TokenType::Plus,
-                    st: String::from("+"),
-                });
+                tokens.push(Token::new_type(TokenType::Plus));
+            } else if ch == '-' {
+                tokens.push(Token::new_type(TokenType::Minus));
             } else if ch == '*' {
-                tokens.push(Token {
-                    kind: TokenType::Asterisk,
-                    st: String::from("*"),
-                });
+                tokens.push(Token::new_type(TokenType::Asterisk));
             } else if ch == ';' {
-                tokens.push(Token {
-                    kind: TokenType::Semicolon,
-                    st: String::from(";"),
-                });
+                tokens.push(Token::new_type(TokenType::Semicolon));
             } else if ch == '\n' {
                 line += 1;
-            } else if ch == '\r' || ch == ' ' {
+            } else if ch == '\r' || ch == ' ' || ch == '\t' {
             } else {
                 errors.push(LexerError::UnexepectedChar(line, ch));
             }
@@ -165,7 +168,7 @@ impl Lexer {
             }
         }
         Token {
-            kind: TokenType::Id,
+            ty: TokenType::Id,
             st: s,
         }
     }
@@ -185,7 +188,7 @@ impl Lexer {
             }
         }
         Token {
-            kind: TokenType::Num,
+            ty: TokenType::Num,
             st: s,
         }
     }

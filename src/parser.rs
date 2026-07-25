@@ -26,12 +26,12 @@ impl Parser {
 
         while let Some(token1) = self.get_token() {
             let token1_st = token1.st.clone();
-            match token1.kind {
+            match token1.ty {
                 TokenType::Id => {
                     self.next();
 
                     let token2 = self.get_token().unwrap();
-                    match token2.kind {
+                    match token2.ty {
                         TokenType::Equal => {
                             self.next();
                             let stmt = Stmt::Assign {
@@ -59,11 +59,11 @@ impl Parser {
         if let Some(token1) = self.get_token() {
             let lnum = token1.st.parse::<i64>().unwrap();
             #[allow(clippy::single_match)]
-            match token1.kind {
+            match token1.ty {
                 TokenType::Num => {
                     self.next();
                     if let Some(token2) = self.get_token() {
-                        match token2.kind {
+                        match token2.ty {
                             TokenType::Plus => {
                                 self.next();
                                 let lexpr = Expr::Number(lnum);
