@@ -1,32 +1,107 @@
-use std::{iter::Peekable, str::Chars};
+use std::{error::Error, fmt::Display, iter::Peekable, str::Chars};
+
+use crate::tokenize::LexerError::{UnexepectedChar, UnexepectedEOF};
 
 #[derive(Debug, Clone)]
-pub enum TokenKind {
+pub enum TokenType {
     Unknown,
-    Semicolon,
+
+    // literals
+    /// examples: asdf, _wersdf
     Id,
+    /// examples 123, 1.5
     Num,
+    /// examples: "sadfsadf"
+    /// 
+    /// for now it doesnt handle escape charaters like '\n'
+    Str,
+
+    // single charater tokens
+    /// `;`
+    Semicolon,
+    /// `=`
     Equal,
+    /// `>`
+    Greater,
+    /// `<`
+    Less,
+    /// `+`
     Plus,
+    /// `-`
     Minus,
+    /// `*`
     Asterisk,
-    LPar,
+    /// `(`
+    LPar, 
+    /// `)`
     RPar,
+    /// `{`
+    LBrace,
+    /// `}`
+    RBrace,
+    /// `/`
+    ForwardSlash,
+    /// `,`
+    Comma,
+    /// `.`
+    Dot,
+    /// `!`
+    Bang,
+
+    // two charater tokens
+    /// `!=`
+    BangEqual,
+    /// `==`
+    EqualEqual,
+    /// `>=`
+    GreaterEqual,
+    /// `<=`
+    LessEqual,
+
+    // Keywords
+
+    Let,
+    Fn,
+    Struct,
+    SElf,
+    Super,
+
+    For,
+    While,
+
+    Print,
+    Return,
+    If,
+    Else,
+    And,
+    Or,
+    True,
+    False,
+
+
+
+    EOF,
+
 }
 
 #[derive(Debug, Clone)]
 pub struct Token {
-    pub kind: TokenKind,
+    pub kind: TokenType,
     pub st: String,
 }
 
 pub struct Lexer {
-    pub buffer: String,
+    buffer: String,
 }
 
 impl Lexer {
-    pub fn tokenize(&mut self) -> Vec<Token> {
+    pub fn new(buffer: String) -> Self {
+        Self { buffer }
+    }
+
+    pub fn tokenize(&mut self) -> Result<Vec<Token>, LexerError> {
         let mut tokens: Vec<Token> = vec![];
+        let mut line: u32 = 0;
 
         let mut chars = self.buffer.chars().peekable();
 
@@ -39,27 +114,39 @@ impl Lexer {
                 tokens.push(token);
             } else if ch == '=' {
                 tokens.push(Token {
-                    kind: TokenKind::Equal,
+                    kind: TokenType::Equal,
                     st: String::from("="),
                 });
             } else if ch == '+' {
                 tokens.push(Token {
-                    kind: TokenKind::Plus,
+                    kind: TokenType::Plus,
                     st: String::from("+"),
                 });
             } else if ch == '*' {
                 tokens.push(Token {
-                    kind: TokenKind::Asterisk,
+                    kind: TokenType::Asterisk,
                     st: String::from("*"),
                 });
             } else if ch == ';' {
                 tokens.push(Token {
-                    kind: TokenKind::Semicolon,
+                    kind: TokenType::Semicolon,
                     st: String::from(";"),
                 });
             }
+            else if ch == '\n' {
+                line += 1;
+            }
+            else if ch == '\r' {
+
+            }
+            else if ch == ' ' {
+
+            }
+            else {
+                return Err(LexerError::UnexepectedChar(line, ch));
+            }
         }
-        tokens
+        Ok(tokens)
     }
 
     fn parse_id(ch: char, chars: &mut Peekable<Chars>) -> Token {
@@ -74,7 +161,7 @@ impl Lexer {
             }
         }
         Token {
-            kind: TokenKind::Id,
+            kind: TokenType::Id,
             st: s,
         }
     }
@@ -94,8 +181,25 @@ impl Lexer {
             }
         }
         Token {
-            kind: TokenKind::Num,
+            kind: TokenType::Num,
             st: s,
         }
     }
 }
+
+#[derive(Debug)]
+pub enum LexerError {
+    UnexepectedEOF,
+    UnexepectedChar(u32, char), // line, char
+}
+
+impl Display for LexerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnexepectedEOF => { write!(f, "Unexpected End of File") },
+            UnexepectedChar(line, ch) => { write!(f, "Line: {line}, Unexpected character: {ch}") }
+        }
+    }
+}
+
+impl Error for LexerError {}

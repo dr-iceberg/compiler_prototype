@@ -1,6 +1,6 @@
 use crate::{
     grammar::{BinOps, Expr, Stmt},
-    tokenize::{Token, TokenKind},
+    tokenize::{Token, TokenType},
 };
 
 pub struct Parser {
@@ -27,12 +27,12 @@ impl Parser {
         while let Some(token1) = self.get_token() {
             let token1_st = token1.st.clone();
             match token1.kind {
-                TokenKind::Id => {
+                TokenType::Id => {
                     self.next();
 
                     let token2 = self.get_token().unwrap();
                     match token2.kind {
-                        TokenKind::Equal => {
+                        TokenType::Equal => {
                             self.next();
                             let stmt = Stmt::Assign {
                                 id: token1_st,
@@ -59,11 +59,11 @@ impl Parser {
         if let Some(token1) = self.get_token() {
             let lnum = token1.st.parse::<i64>().unwrap();
             match token1.kind {
-                TokenKind::Num => {
+                TokenType::Num => {
                     self.next();
                     if let Some(token2) = self.get_token() {
                         match token2.kind {
-                            TokenKind::Plus => {
+                            TokenType::Plus => {
                                 self.next();
                                 let lexpr = Expr::Number(lnum);
                                 let left = Box::new(lexpr);
@@ -74,7 +74,7 @@ impl Parser {
                                     right: right,
                                 }
                             }
-                            TokenKind::Semicolon => {
+                            TokenType::Semicolon => {
                                 expr = Expr::Number(lnum);
                             }
                             _ => {}

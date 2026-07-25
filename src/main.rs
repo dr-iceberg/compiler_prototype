@@ -30,14 +30,17 @@ impl SemanticAnalyzer {
 }
 
 fn main() -> std::io::Result<()> {
-    let file = File::open("src.txt")?;
-    let mut reader = BufReader::new(file);
+    let file = File::open("src.txt")?; 
     let mut buffer = String::new();
-    reader.read_to_string(&mut buffer)?;
+    {
+        let mut reader = BufReader::new(file);
+        reader.read_to_string(&mut buffer)?;
+    }
+    
 
-    let mut lexer = Lexer { buffer: buffer };
+    let mut lexer = Lexer::new(buffer);
 
-    let tokens = lexer.tokenize();
+    let tokens = lexer.tokenize().unwrap();
 
     let mut parser = Parser {
         tokens: tokens.clone(),
