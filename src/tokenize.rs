@@ -96,6 +96,16 @@ impl Token {
             TokenType::Minus => "-".to_string(),
             TokenType::Asterisk => "*".to_string(),
             TokenType::Semicolon => ";".to_string(),
+            TokenType::ForwardSlash => "/".to_string(),
+            TokenType::LPar => "(".to_string(),
+            TokenType::RPar => ")".to_string(),
+            TokenType::LBrace => "{".to_string(),
+            TokenType::RBrace => "}".to_string(),
+            TokenType::Less => "<".to_string(),
+            TokenType::LessEqual => "<=".to_string(),
+            TokenType::Greater => ">".to_string(),
+            TokenType::GreaterEqual => ">=".to_string(),
+            TokenType::Bang => "!".to_string(),
             _ => "".to_string(),
         };
 
@@ -127,9 +137,10 @@ impl Lexer {
                 let token = Lexer::parse_num(ch, &mut chars);
                 tokens.push(token);
             } else if ch == '=' {
-                if chars.peek() == Some(&ch) {
-                    if ch == '=' {
+                if let Some(&ch2) = chars.peek() {
+                    if ch2 == '=' {
                         tokens.push(Token::new_type(TokenType::EqualEqual));
+                        chars.next();
                     }
                 } else {
                     tokens.push(Token::new_type(TokenType::Equal));
@@ -142,9 +153,51 @@ impl Lexer {
                 tokens.push(Token::new_type(TokenType::Asterisk));
             } else if ch == ';' {
                 tokens.push(Token::new_type(TokenType::Semicolon));
+            } else if ch == '!' {
+                tokens.push(Token::new_type(TokenType::Bang));
+            } else if ch == '(' {
+                tokens.push(Token::new_type(TokenType::LPar));
+            } else if ch == ')' {
+                tokens.push(Token::new_type(TokenType::RPar));
+            } else if ch == '{' {
+                tokens.push(Token::new_type(TokenType::LBrace));
+            } else if ch == '}' {
+                tokens.push(Token::new_type(TokenType::RBrace));
+            } else if ch == '<' {
+                if let Some(&ch2) = chars.peek() {
+                    if ch2 == '=' {
+                        tokens.push(Token::new_type(TokenType::LessEqual));
+                        chars.next();
+                    }
+                } else {
+                    tokens.push(Token::new_type(TokenType::Less));
+                }
+            } else if ch == '>' {
+                if let Some(&ch2) = chars.peek() {
+                    if ch2 == '=' {
+                        tokens.push(Token::new_type(TokenType::GreaterEqual));
+                        chars.next();
+                    }
+                } else {
+                    tokens.push(Token::new_type(TokenType::Greater));
+                }
             } else if ch == '\n' {
                 line += 1;
             } else if ch == '\r' || ch == ' ' || ch == '\t' {
+            } else if ch == '/' {
+                if let Some(&ch2) = chars.peek() {
+                    // comment handling
+                    if ch2 == '/' {
+                        #[allow(clippy::while_let_on_iterator)]
+                        while let Some(ch3) = chars.next() {
+                            if ch3 == '\n' {
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    tokens.push(Token::new_type(TokenType::ForwardSlash));
+                }
             } else {
                 errors.push(LexerError::UnexepectedChar(line, ch));
             }

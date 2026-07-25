@@ -1,7 +1,7 @@
 #![allow(dead_code, unused_variables)]
 
+use compiler_prototype::grammar::*;
 use compiler_prototype::tokenize::Lexer;
-use compiler_prototype::{grammar::*, parser::Parser};
 use std::error::Error;
 use std::io::BufReader;
 use std::{fs::File, io::Read};
@@ -32,7 +32,7 @@ impl SemanticAnalyzer {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let file = File::open("src.txt")?;
+    let file = File::open("lexer_test_src.txt")?;
     let mut buffer = String::new();
     {
         let mut reader = BufReader::new(file);
@@ -51,19 +51,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
+    /*
     let mut parser = Parser {
         tokens: tokens.clone(),
         pos: 0,
     };
     let stmts = parser.parse_input();
-
+     */
     for token in tokens {
         println!("{:?}", token);
     }
-
+    /*
     for stmt in stmts {
         println!("{:?}", stmt);
     }
-
+    */
     Ok(())
 }
