@@ -43,8 +43,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let tokens = match lexer.tokenize() {
         Ok(tokens) => tokens,
-        Err(err) => {
-            eprintln!("Lexer error: {err}");
+        Err(errors) => {
+            for err in errors {
+                eprintln!("Lexer error: {err}");
+            }
             return Ok(());
         }
     };

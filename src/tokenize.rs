@@ -95,8 +95,9 @@ impl Lexer {
         Self { buffer }
     }
 
-    pub fn tokenize(&mut self) -> Result<Vec<Token>, LexerError> {
+    pub fn tokenize(&mut self) -> Result<Vec<Token>, Vec<LexerError>> {
         let mut tokens: Vec<Token> = vec![];
+        let mut errors: Vec<LexerError> = vec![];
         let mut line: u32 = 1;
 
         let mut chars = self.buffer.chars().peekable();
@@ -141,10 +142,15 @@ impl Lexer {
                 line += 1;
             } else if ch == '\r' || ch == ' ' {
             } else {
-                return Err(LexerError::UnexepectedChar(line, ch));
+                errors.push(LexerError::UnexepectedChar(line, ch));
             }
         }
-        Ok(tokens)
+
+        if errors.is_empty() {
+            Ok(tokens)
+        } else {
+            Err(errors)
+        }
     }
 
     fn parse_id(ch: char, chars: &mut Peekable<Chars>) -> Token {
