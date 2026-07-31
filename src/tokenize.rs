@@ -2,15 +2,17 @@ use std::{error::Error, fmt::Display, iter::Peekable, str::Chars};
 
 use crate::tokenize::LexerError::{UnexepectedChar, UnexepectedEOF};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenType {
     Unknown,
 
     // literals
     /// examples: `asdf`, `_wersdf`
     Id,
-    /// examples: `123`, `1.5`
-    Num,
+    /// examples: `123`
+    Int,
+    /// examples: `1.5`, `53.05`
+    Float,
     /// examples: `"sadfsadf"`
     ///
     /// for now it doesnt handle escape charaters like `'\n'`, `'\t'`, etc.
@@ -62,8 +64,8 @@ pub enum TokenType {
     Let,
     Fn,
     Struct,
+    /// `self`
     SElf,
-    Super,
 
     For,
     While,
@@ -85,6 +87,10 @@ pub enum TokenType {
 pub struct Token {
     pub ty: TokenType,
     pub st: String,
+    // later a span should be used here
+    // it would hold the byte offset of the token in original source code
+    // and could be used to access the original string from there
+    // instead of holding it in a separate String and thus duplicating memory
 }
 
 impl Token {
@@ -115,27 +121,39 @@ impl Token {
 
 pub struct Lexer {
     buffer: String,
+    line: u64,
 }
 
 impl Lexer {
     pub fn new(buffer: String) -> Self {
-        Self { buffer }
+        Self { buffer, line: 1 }
     }
 
     pub fn tokenize(&mut self) -> Result<Vec<Token>, Vec<LexerError>> {
         let mut tokens: Vec<Token> = vec![];
         let mut errors: Vec<LexerError> = vec![];
-        let mut line: u32 = 1;
 
         let mut chars = self.buffer.chars().peekable();
 
         while let Some(ch) = chars.next() {
             if ch.is_ascii_alphabetic() || ch == '_' {
-                let token = Lexer::parse_id(ch, &mut chars);
-                tokens.push(token);
+                match self.read_str(ch, &mut chars) {
+                    Ok(token) => {
+                        tokens.push(token);
+                    }
+                    Err(err) => {
+                        errors.push(err);
+                    }
+                }
             } else if ch.is_numeric() {
-                let token = Lexer::parse_num(ch, &mut chars);
-                tokens.push(token);
+                match self.read_num(ch, &mut chars) {
+                    Ok(token) => {
+                        tokens.push(token);
+                    }
+                    Err(err) => {
+                        errors.push(err);
+                    }
+                }
             } else if ch == '=' {
                 if let Some(&ch2) = chars.peek() {
                     if ch2 == '=' {
@@ -182,7 +200,7 @@ impl Lexer {
                     tokens.push(Token::new_type(TokenType::Greater));
                 }
             } else if ch == '\n' {
-                line += 1;
+                self.line += 1;
             } else if ch == '\r' || ch == ' ' || ch == '\t' {
             } else if ch == '/' {
                 if let Some(&ch2) = chars.peek() {
@@ -199,7 +217,7 @@ impl Lexer {
                     tokens.push(Token::new_type(TokenType::ForwardSlash));
                 }
             } else {
-                errors.push(LexerError::UnexepectedChar(line, ch));
+                errors.push(LexerError::UnexepectedChar(self.line, ch));
             }
         }
 
@@ -210,7 +228,7 @@ impl Lexer {
         }
     }
 
-    fn parse_id(ch: char, chars: &mut Peekable<Chars>) -> Token {
+    fn read_str(&self, ch: char, chars: &mut Peekable<Chars>) -> Result<Token, LexerError> {
         let mut s = String::from(ch);
 
         while let Some(next) = chars.peek().copied() {
@@ -218,16 +236,50 @@ impl Lexer {
                 s.push(next);
                 chars.next();
             } else {
-                break;
+                return Err(LexerError::UnexepectedChar(self.line, next));
             }
         }
-        Token {
-            ty: TokenType::Id,
-            st: s,
-        }
+
+        // keyword recognition
+
+        let ty = {
+            if s == "fn" {
+                TokenType::Fn
+            } else if s == "let" {
+                TokenType::Let
+            } else if s == "struct" {
+                TokenType::Struct
+            } else if s == "self" {
+                TokenType::SElf
+            } else if s == "for" {
+                TokenType::For
+            } else if s == "while" {
+                TokenType::While
+            } else if s == "print" {
+                TokenType::Print
+            } else if s == "return" {
+                TokenType::Return
+            } else if s == "if" {
+                TokenType::If
+            } else if s == "else" {
+                TokenType::Else
+            } else if s == "and" {
+                TokenType::And
+            } else if s == "or" {
+                TokenType::Or
+            } else if s == "true" {
+                TokenType::True
+            } else if s == "false" {
+                TokenType::False
+            } else {
+                TokenType::Id
+            }
+        };
+
+        Ok(Token { ty, st: s })
     }
 
-    fn parse_num(ch: char, chars: &mut Peekable<Chars>) -> Token {
+    fn read_num(&self, ch: char, chars: &mut Peekable<Chars>) -> Result<Token, LexerError> {
         let mut s = String::from(ch);
         let mut dot = false;
 
@@ -238,12 +290,20 @@ impl Lexer {
                 s.push(next);
                 chars.next();
             } else {
-                break;
+                return Err(LexerError::UnexepectedChar(self.line, next));
             }
         }
-        Token {
-            ty: TokenType::Num,
-            st: s,
+
+        if dot {
+            Ok(Token {
+                ty: TokenType::Float,
+                st: s,
+            })
+        } else {
+            Ok(Token {
+                ty: TokenType::Int,
+                st: s,
+            })
         }
     }
 }
@@ -251,7 +311,7 @@ impl Lexer {
 #[derive(Debug)]
 pub enum LexerError {
     UnexepectedEOF,
-    UnexepectedChar(u32, char), // line, char
+    UnexepectedChar(u64, char), // line, char
 }
 
 impl Display for LexerError {

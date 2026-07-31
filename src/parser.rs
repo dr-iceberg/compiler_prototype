@@ -1,14 +1,20 @@
+use std::{error::Error, fmt::Display};
+
 use crate::{
-    grammar::{BinOps, Expr, Stmt},
+    grammar::{BinOp, Decl, Expr, Literal, Program, Stmt},
     tokenize::{Token, TokenType},
 };
 
 pub struct Parser {
-    pub tokens: Vec<Token>,
-    pub pos: usize,
+    tokens: Vec<Token>,
+    pos: usize,
 }
 
 impl Parser {
+    pub fn new(tokens: Vec<Token>) -> Self {
+        Self { tokens, pos: 0 }
+    }
+
     fn get_token(&self) -> Option<&Token> {
         self.tokens.get(self.pos)
     }
@@ -21,8 +27,8 @@ impl Parser {
         self.pos += 1;
     }
 
-    pub fn parse_input(&mut self) -> Vec<Stmt> {
-        let mut stmts: Vec<Stmt> = vec![];
+    pub fn parse_input(&mut self) -> Program {
+        let mut decls: Vec<Decl> = Vec::new();
 
         while let Some(token1) = self.get_token() {
             let token1_st = token1.st.clone();
@@ -51,7 +57,9 @@ impl Parser {
             }
         }
 
-        stmts
+        Program {
+            declarations: decls,
+        }
     }
 
     fn parse_expr(&mut self) -> Expr {
@@ -89,3 +97,24 @@ impl Parser {
         expr
     }
 }
+
+#[derive(Debug)]
+pub enum ParserError {
+    UnexepectedEOF,
+    UnexpectedToken(TokenType),
+}
+
+impl Display for ParserError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParserError::UnexepectedEOF => {
+                write!(f, "Unexpected end of file")
+            }
+            ParserError::UnexpectedToken(token) => {
+                write!(f, "Unexpected token: {:?}", token)
+            }
+        }
+    }
+}
+
+impl Error for ParserError {}
