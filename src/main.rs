@@ -32,7 +32,7 @@ impl SemanticAnalyzer {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let file = File::open("lexer_test_src.txt")?;
+    let file = File::open("src.txt")?;
     let mut buffer = String::new();
     {
         let mut reader = BufReader::new(file);
@@ -51,20 +51,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    /*
-    let mut parser = Parser {
-        tokens: tokens.clone(),
-        pos: 0,
-    };
-    let stmts = parser.parse_input();
-     */
     for token in tokens {
         println!("{:?}", token);
     }
-    /*
-    for stmt in stmts {
-        println!("{:?}", stmt);
-    }
-    */
+
     Ok(())
 }

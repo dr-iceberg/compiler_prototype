@@ -229,68 +229,76 @@ impl Lexer {
     }
 
     fn read_str(&self, ch: char, chars: &mut Peekable<Chars>) -> Result<Token, LexerError> {
-        let mut s = String::from(ch);
+        let mut st = String::from(ch);
 
-        while let Some(next) = chars.peek().copied() {
+        while let Some(&next) = chars.peek() {
             if next.is_alphanumeric() || next == '_' {
-                s.push(next);
+                st.push(next);
                 chars.next();
             } else {
-                return Err(LexerError::UnexepectedChar(self.line, next));
+                //return Err(LexerError::UnexepectedChar(self.line, next));
+                break;
             }
         }
 
         // keyword recognition
 
         let ty = {
-            if s == "fn" {
+            if st == "fn" {
                 TokenType::Fn
-            } else if s == "let" {
+            } else if st == "let" {
                 TokenType::Let
-            } else if s == "struct" {
+            } else if st == "struct" {
                 TokenType::Struct
-            } else if s == "self" {
+            } else if st == "self" {
                 TokenType::SElf
-            } else if s == "for" {
+            } else if st == "for" {
                 TokenType::For
-            } else if s == "while" {
+            } else if st == "while" {
                 TokenType::While
-            } else if s == "print" {
+            } else if st == "print" {
                 TokenType::Print
-            } else if s == "return" {
+            } else if st == "return" {
                 TokenType::Return
-            } else if s == "if" {
+            } else if st == "if" {
                 TokenType::If
-            } else if s == "else" {
+            } else if st == "else" {
                 TokenType::Else
-            } else if s == "and" {
+            } else if st == "and" {
                 TokenType::And
-            } else if s == "or" {
+            } else if st == "or" {
                 TokenType::Or
-            } else if s == "true" {
+            } else if st == "true" {
                 TokenType::True
-            } else if s == "false" {
+            } else if st == "false" {
                 TokenType::False
             } else {
                 TokenType::Id
             }
         };
 
-        Ok(Token { ty, st: s })
+        Ok(Token { ty, st })
     }
 
     fn read_num(&self, ch: char, chars: &mut Peekable<Chars>) -> Result<Token, LexerError> {
         let mut s = String::from(ch);
         let mut dot = false;
 
-        while let Some(next) = chars.peek().copied() {
-            if next == '.' && !dot {
-                dot = true;
+        while let Some(&next) = chars.peek() {
+            if next == '.' {
+                if !dot {
+                    s.push(next);
+                    dot = true;
+                    chars.next();
+                } else {
+                    return Err(LexerError::UnexepectedChar(self.line, next));
+                }
             } else if next.is_alphanumeric() || next == '_' {
                 s.push(next);
                 chars.next();
             } else {
-                return Err(LexerError::UnexepectedChar(self.line, next));
+                //return Err(LexerError::UnexepectedChar(self.line, next));
+                break;
             }
         }
 
@@ -321,7 +329,7 @@ impl Display for LexerError {
                 write!(f, "Unexpected End of File")
             }
             UnexepectedChar(line, ch) => {
-                write!(f, "Line {line}, Unexpected character: {ch}")
+                write!(f, "Line {line}, Unexpected character: '{ch}'")
             }
         }
     }

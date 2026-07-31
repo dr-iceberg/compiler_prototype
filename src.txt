@@ -1,4 +1,5 @@
-a = 1 + 2;
-b = 1 + 2 + 3;
-c = 1 + 2 + 3 + 4;
-d = 1;
+
+fn main() {
+    let a_bcd = 1.5;
+    return a_bcd + 1.5;
+}
