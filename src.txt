@@ -1,5 +1,4 @@
 
-fn main() {
-    let a_bcd = 1.5;
-    return a_bcd + 1.5;
+fn main() -> int {
+    return 0;
 }

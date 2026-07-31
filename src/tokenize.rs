@@ -21,6 +21,8 @@ pub enum TokenType {
     // single charater tokens
     /// `;`
     Semicolon,
+    /// `:`
+    Colon,
     /// `=`
     Equal,
     /// `>`
@@ -59,6 +61,8 @@ pub enum TokenType {
     GreaterEqual,
     /// `<=`
     LessEqual,
+    /// `->`
+    ArrowRight,
 
     // Keywords
     Let,
@@ -79,6 +83,16 @@ pub enum TokenType {
     Or,
     True,
     False,
+
+    // Types treated as keywords
+    /// `int`
+    IntType,
+    /// `float`
+    FloatType,
+    /// `string`
+    StringType,
+    /// `bool`
+    BoolType,
 
     EOF,
 }
@@ -102,6 +116,7 @@ impl Token {
             TokenType::Minus => "-".to_string(),
             TokenType::Asterisk => "*".to_string(),
             TokenType::Semicolon => ";".to_string(),
+            TokenType::Colon => ":".to_string(),
             TokenType::ForwardSlash => "/".to_string(),
             TokenType::LPar => "(".to_string(),
             TokenType::RPar => ")".to_string(),
@@ -112,6 +127,7 @@ impl Token {
             TokenType::Greater => ">".to_string(),
             TokenType::GreaterEqual => ">=".to_string(),
             TokenType::Bang => "!".to_string(),
+            TokenType::ArrowRight => "->".to_string(),
             _ => "".to_string(),
         };
 
@@ -166,11 +182,20 @@ impl Lexer {
             } else if ch == '+' {
                 tokens.push(Token::new_type(TokenType::Plus));
             } else if ch == '-' {
-                tokens.push(Token::new_type(TokenType::Minus));
+                if let Some(&ch2) = chars.peek() {
+                    if ch2 == '>' {
+                        tokens.push(Token::new_type(TokenType::ArrowRight));
+                        chars.next();
+                    } else {
+                        tokens.push(Token::new_type(TokenType::Minus));
+                    }
+                }
             } else if ch == '*' {
                 tokens.push(Token::new_type(TokenType::Asterisk));
             } else if ch == ';' {
                 tokens.push(Token::new_type(TokenType::Semicolon));
+            } else if ch == ':' {
+                tokens.push(Token::new_type(TokenType::Colon));
             } else if ch == '!' {
                 tokens.push(Token::new_type(TokenType::Bang));
             } else if ch == '(' {
@@ -272,6 +297,14 @@ impl Lexer {
                 TokenType::True
             } else if st == "false" {
                 TokenType::False
+            } else if st == "int" {
+                TokenType::IntType
+            } else if st == "float" {
+                TokenType::FloatType
+            } else if st == "string" {
+                TokenType::StringType
+            } else if st == "bool" {
+                TokenType::BoolType
             } else {
                 TokenType::Id
             }

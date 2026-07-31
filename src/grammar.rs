@@ -45,11 +45,12 @@ pub enum BinOp {
     GreaterEqual,
 }
 
+#[derive(Debug)]
 pub struct Function {
-    id: String,
-    parameters: Vec<Parameter>,
-    body: Vec<Stmt>,
-    return_type: Literal,
+    pub id: String,
+    pub parameters: Vec<Parameter>,
+    pub body: Vec<Stmt>,
+    pub return_type: Type,
 }
 
 #[derive(Debug, Clone)]
@@ -58,15 +59,18 @@ pub enum Stmt {
     Assign { id: String, expr: Expr },
 }
 
+#[derive(Debug)]
 pub struct Parameter {
-    name: String,
-    ty: Type,
+    pub name: String,
+    pub ty: Type,
 }
 
+#[derive(Debug)]
 pub struct Program {
     pub declarations: Vec<Decl>,
 }
 
+#[derive(Debug)]
 pub enum Decl {
     Function(Function), // not a declaration in a C sense but just a definition
                         // later add things like struct declarations, constants, etc.

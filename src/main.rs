@@ -1,7 +1,7 @@
 #![allow(dead_code, unused_variables)]
 
-use compiler_prototype::grammar::*;
 use compiler_prototype::tokenize::Lexer;
+use compiler_prototype::{grammar::*, parser};
 use std::error::Error;
 use std::io::BufReader;
 use std::{fs::File, io::Read};
@@ -41,8 +41,21 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut lexer = Lexer::new(buffer);
 
-    let tokens = match lexer.tokenize() {
-        Ok(tokens) => tokens,
+    match lexer.tokenize() {
+        Ok(tokens) => {
+            let mut parser = parser::Parser::new(tokens);
+            match parser.parse_program() {
+                Ok(program) => {
+                    println!("{:?}", program);
+                }
+                Err(errors) => {
+                    for err in errors {
+                        eprintln!("Lexer error: {err}");
+                    }
+                    return Ok(());
+                }
+            }
+        }
         Err(errors) => {
             for err in errors {
                 eprintln!("Lexer error: {err}");
@@ -50,10 +63,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             return Ok(());
         }
     };
-
-    for token in tokens {
-        println!("{:?}", token);
-    }
 
     Ok(())
 }
