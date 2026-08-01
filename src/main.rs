@@ -1,8 +1,10 @@
 #![allow(dead_code, unused_variables)]
 
 use compiler_prototype::analyzer::SemanticAnalyzer;
+use compiler_prototype::codegen::CodeGen;
 use compiler_prototype::parser;
 use compiler_prototype::tokenize::Lexer;
+use inkwell::context::Context;
 use std::error::Error;
 use std::io::BufReader;
 use std::{fs::File, io::Read};
@@ -25,7 +27,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                     println!("{:?}", program);
                     let analyzer = SemanticAnalyzer::default();
                     match analyzer.check_program(&program) {
-                        Ok(_) => {}
+                        Ok(_) => {
+                            let ctx = Context::create();
+                            let mut code_generator = CodeGen::new(&ctx);
+                            code_generator.compile_program(&program)?;
+                        }
                         Err(err) => {
                             eprintln!("Semantic error: {err}");
                         }
