@@ -39,7 +39,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 Err(errors) => {
                     for err in errors {
-                        eprintln!("Lexer error: {err}");
+                        eprintln!("Parser error: {err}");
                     }
                     return Ok(());
                 }
