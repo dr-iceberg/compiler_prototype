@@ -76,7 +76,7 @@ pub enum Decl {
                         // later add things like struct declarations, constants, etc.
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Int,
     Float,

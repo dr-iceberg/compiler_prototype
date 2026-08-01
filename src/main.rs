@@ -1,35 +1,11 @@
 #![allow(dead_code, unused_variables)]
 
+use compiler_prototype::analyzer::SemanticAnalyzer;
+use compiler_prototype::parser;
 use compiler_prototype::tokenize::Lexer;
-use compiler_prototype::{grammar::*, parser};
 use std::error::Error;
 use std::io::BufReader;
 use std::{fs::File, io::Read};
-
-struct SemanticAnalyzer {
-    stmts: Vec<Stmt>,
-    id_table: Vec<String>,
-}
-
-impl SemanticAnalyzer {
-    fn check_program(&self) {
-        for stmt in self.stmts.iter() {
-            SemanticAnalyzer::check_stmt(stmt);
-        }
-    }
-
-    fn generate_id_table(&self) {}
-
-    fn check_stmt(stmt: &Stmt) {
-        #[allow(clippy::single_match)]
-        match stmt {
-            Stmt::Assign { id, expr } => Self::check_expr(expr),
-            _ => {}
-        }
-    }
-
-    fn check_expr(expr: &Expr) {}
-}
 
 fn main() -> Result<(), Box<dyn Error>> {
     let file = File::open("src.txt")?;
@@ -47,6 +23,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             match parser.parse_program() {
                 Ok(program) => {
                     println!("{:?}", program);
+                    let analyzer = SemanticAnalyzer::default();
+                    match analyzer.check_program(&program) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            eprintln!("Semantic error: {err}");
+                        }
+                    }
                 }
                 Err(errors) => {
                     for err in errors {
