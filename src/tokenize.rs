@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display, iter::Peekable, str::Chars};
+use std::{error::Error, fmt::Display, iter::Peekable, str::CharIndices};
 
 use crate::tokenize::LexerError::{UnexepectedChar, UnexepectedEOF};
 
@@ -97,63 +97,70 @@ pub enum TokenType {
     EOF,
 }
 
-#[derive(Debug, Clone)]
-pub struct Token {
-    pub ty: TokenType,
-    pub st: String,
-    // later a span should be used here
-    // it would hold the byte offset of the token in original source code
-    // and could be used to access the original string from there
-    // instead of holding it in a separate String and thus duplicating memory
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Span {
+    start: u32,
+    end: u32,
 }
 
-impl Token {
-    pub fn new_type(ty: TokenType) -> Self {
-        let st: String = match ty {
-            TokenType::Equal => "=".to_string(),
-            TokenType::EqualEqual => "==".to_string(),
-            TokenType::Plus => "+".to_string(),
-            TokenType::Minus => "-".to_string(),
-            TokenType::Asterisk => "*".to_string(),
-            TokenType::Semicolon => ";".to_string(),
-            TokenType::Colon => ":".to_string(),
-            TokenType::ForwardSlash => "/".to_string(),
-            TokenType::LPar => "(".to_string(),
-            TokenType::RPar => ")".to_string(),
-            TokenType::LBrace => "{".to_string(),
-            TokenType::RBrace => "}".to_string(),
-            TokenType::Less => "<".to_string(),
-            TokenType::LessEqual => "<=".to_string(),
-            TokenType::Greater => ">".to_string(),
-            TokenType::GreaterEqual => ">=".to_string(),
-            TokenType::Bang => "!".to_string(),
-            TokenType::ArrowRight => "->".to_string(),
-            _ => "".to_string(),
-        };
+impl Span {
+    pub fn new_single_char(pos: usize) -> Self {
+        Self::new(pos, pos)
+    }
 
-        Self { ty, st }
+    pub fn new(start: usize, end: usize) -> Self {
+        assert!(start <= end);
+        Self {
+            start: start as u32,
+            end: end as u32,
+        }
+    }
+
+    pub fn start(&self) -> u32 {
+        self.start
+    }
+
+    pub fn end(&self) -> u32 {
+        self.end
     }
 }
 
-pub struct Lexer {
-    buffer: String,
+#[derive(Debug, Clone, Copy)]
+pub struct Token {
+    pub ty: TokenType,
+    pub span: Span,
+}
+
+impl Token {
+    pub fn new(ty: TokenType, span: Span) -> Self {
+        Self { ty, span }
+    }
+    pub fn lexeme<'a>(&self, source: &'a str) -> &'a str {
+        let start = self.span.start() as usize;
+        let end = self.span.end() as usize;
+        &source[start..=end]
+    }
+}
+
+pub struct Lexer<'a> {
+    source: &'a str,
     line: u64,
 }
 
-impl Lexer {
-    pub fn new(buffer: String) -> Self {
-        Self { buffer, line: 1 }
+impl<'a> Lexer<'a> {
+    pub fn new(source: &'a str) -> Self {
+        Self { source, line: 1 }
     }
 
     pub fn tokenize(&mut self) -> Result<Vec<Token>, Vec<LexerError>> {
         let mut tokens: Vec<Token> = vec![];
         let mut errors: Vec<LexerError> = vec![];
 
-        let mut chars = self.buffer.chars().peekable();
+        let mut chars = self.source.char_indices().peekable();
 
-        while let Some(ch) = chars.next() {
+        while let Some((pos, ch)) = chars.next() {
             if ch.is_ascii_alphabetic() || ch == '_' {
-                match self.read_str(ch, &mut chars) {
+                match self.read_str(pos, ch, &mut chars) {
                     Ok(token) => {
                         tokens.push(token);
                     }
@@ -162,7 +169,7 @@ impl Lexer {
                     }
                 }
             } else if ch.is_numeric() {
-                match self.read_num(ch, &mut chars) {
+                match self.read_num(pos, ch, &mut chars) {
                     Ok(token) => {
                         tokens.push(token);
                     }
@@ -171,75 +178,78 @@ impl Lexer {
                     }
                 }
             } else if ch == '=' {
-                if let Some(&ch2) = chars.peek() {
+                if let Some(&(pos2, ch2)) = chars.peek() {
                     if ch2 == '=' {
-                        tokens.push(Token::new_type(TokenType::EqualEqual));
+                        tokens.push(Token::new(TokenType::EqualEqual, Span::new(pos, pos2)));
                         chars.next();
                     }
                 } else {
-                    tokens.push(Token::new_type(TokenType::Equal));
+                    tokens.push(Token::new(TokenType::Equal, Span::new_single_char(pos)));
                 }
             } else if ch == '+' {
-                tokens.push(Token::new_type(TokenType::Plus));
+                tokens.push(Token::new(TokenType::Plus, Span::new_single_char(pos)));
             } else if ch == '-' {
-                if let Some(&ch2) = chars.peek() {
+                if let Some(&(pos2, ch2)) = chars.peek() {
                     if ch2 == '>' {
-                        tokens.push(Token::new_type(TokenType::ArrowRight));
+                        tokens.push(Token::new(TokenType::ArrowRight, Span::new(pos, pos2)));
                         chars.next();
                     } else {
-                        tokens.push(Token::new_type(TokenType::Minus));
+                        tokens.push(Token::new(TokenType::Minus, Span::new_single_char(pos)));
                     }
                 }
             } else if ch == '*' {
-                tokens.push(Token::new_type(TokenType::Asterisk));
+                tokens.push(Token::new(TokenType::Asterisk, Span::new_single_char(pos)));
             } else if ch == ';' {
-                tokens.push(Token::new_type(TokenType::Semicolon));
+                tokens.push(Token::new(TokenType::Semicolon, Span::new_single_char(pos)));
             } else if ch == ':' {
-                tokens.push(Token::new_type(TokenType::Colon));
+                tokens.push(Token::new(TokenType::Colon, Span::new_single_char(pos)));
             } else if ch == '!' {
-                tokens.push(Token::new_type(TokenType::Bang));
+                tokens.push(Token::new(TokenType::Bang, Span::new_single_char(pos)));
             } else if ch == '(' {
-                tokens.push(Token::new_type(TokenType::LPar));
+                tokens.push(Token::new(TokenType::LPar, Span::new_single_char(pos)));
             } else if ch == ')' {
-                tokens.push(Token::new_type(TokenType::RPar));
+                tokens.push(Token::new(TokenType::RPar, Span::new_single_char(pos)));
             } else if ch == '{' {
-                tokens.push(Token::new_type(TokenType::LBrace));
+                tokens.push(Token::new(TokenType::LBrace, Span::new_single_char(pos)));
             } else if ch == '}' {
-                tokens.push(Token::new_type(TokenType::RBrace));
+                tokens.push(Token::new(TokenType::RBrace, Span::new_single_char(pos)));
             } else if ch == '<' {
-                if let Some(&ch2) = chars.peek() {
+                if let Some(&(pos2, ch2)) = chars.peek() {
                     if ch2 == '=' {
-                        tokens.push(Token::new_type(TokenType::LessEqual));
+                        tokens.push(Token::new(TokenType::LessEqual, Span::new(pos, pos2)));
                         chars.next();
                     }
                 } else {
-                    tokens.push(Token::new_type(TokenType::Less));
+                    tokens.push(Token::new(TokenType::Less, Span::new_single_char(pos)));
                 }
             } else if ch == '>' {
-                if let Some(&ch2) = chars.peek() {
+                if let Some(&(pos2, ch2)) = chars.peek() {
                     if ch2 == '=' {
-                        tokens.push(Token::new_type(TokenType::GreaterEqual));
+                        tokens.push(Token::new(TokenType::GreaterEqual, Span::new(pos, pos2)));
                         chars.next();
                     }
                 } else {
-                    tokens.push(Token::new_type(TokenType::Greater));
+                    tokens.push(Token::new(TokenType::Greater, Span::new_single_char(pos)));
                 }
             } else if ch == '\n' {
                 self.line += 1;
             } else if ch == '\r' || ch == ' ' || ch == '\t' {
             } else if ch == '/' {
-                if let Some(&ch2) = chars.peek() {
+                if let Some(&(_, ch2)) = chars.peek() {
                     // comment handling
                     if ch2 == '/' {
                         #[allow(clippy::while_let_on_iterator)]
-                        while let Some(ch3) = chars.next() {
+                        while let Some((_, ch3)) = chars.next() {
                             if ch3 == '\n' {
                                 break;
                             }
                         }
                     }
                 } else {
-                    tokens.push(Token::new_type(TokenType::ForwardSlash));
+                    tokens.push(Token::new(
+                        TokenType::ForwardSlash,
+                        Span::new_single_char(pos),
+                    ));
                 }
             } else {
                 errors.push(LexerError::UnexepectedChar(self.line, ch));
@@ -253,15 +263,22 @@ impl Lexer {
         }
     }
 
-    fn read_str(&self, ch: char, chars: &mut Peekable<Chars>) -> Result<Token, LexerError> {
+    fn read_str(
+        &self,
+        pos: usize,
+        ch: char,
+        chars: &mut Peekable<CharIndices>,
+    ) -> Result<Token, LexerError> {
         let mut st = String::from(ch);
+        let mut pos2 = pos;
 
-        while let Some(&next) = chars.peek() {
+        while let Some(&(p, next)) = chars.peek() {
             if next.is_alphanumeric() || next == '_' {
                 st.push(next);
                 chars.next();
             } else {
                 //return Err(LexerError::UnexepectedChar(self.line, next));
+                pos2 = p - 1; // p - 1 because we are at the next character
                 break;
             }
         }
@@ -310,14 +327,20 @@ impl Lexer {
             }
         };
 
-        Ok(Token { ty, st })
+        Ok(Token::new(ty, Span::new(pos, pos2)))
     }
 
-    fn read_num(&self, ch: char, chars: &mut Peekable<Chars>) -> Result<Token, LexerError> {
+    fn read_num(
+        &self,
+        pos: usize,
+        ch: char,
+        chars: &mut Peekable<CharIndices>,
+    ) -> Result<Token, LexerError> {
         let mut s = String::from(ch);
         let mut dot = false;
+        let mut pos2 = pos;
 
-        while let Some(&next) = chars.peek() {
+        while let Some(&(p, next)) = chars.peek() {
             if next == '.' {
                 if !dot {
                     s.push(next);
@@ -331,21 +354,20 @@ impl Lexer {
                 chars.next();
             } else {
                 //return Err(LexerError::UnexepectedChar(self.line, next));
+                pos2 = p - 1; // p - 1 because we are at the next character
                 break;
             }
         }
 
-        if dot {
-            Ok(Token {
-                ty: TokenType::Float,
-                st: s,
-            })
-        } else {
-            Ok(Token {
-                ty: TokenType::Int,
-                st: s,
-            })
-        }
+        let ty = {
+            if dot {
+                TokenType::Float
+            } else {
+                TokenType::Int
+            }
+        };
+
+        Ok(Token::new(ty, Span::new(pos, pos2)))
     }
 }
 

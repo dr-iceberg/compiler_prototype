@@ -19,28 +19,25 @@ impl Parser {
         self.tokens.get(self.pos)
     }
 
-    fn advance(&mut self) -> Option<Token> {
-        if self.pos >= self.tokens.len() {
-            return None;
+    fn advance(&mut self) {
+        if self.pos < self.tokens.len() {
+            self.pos += 1;
         }
-
-        let token = self.tokens[self.pos].clone();
-        self.pos += 1;
-        Some(token)
     }
 
-    fn check(&self, typ: TokenType) -> Result<&Token, ParserError> {
-        let token = self.current().ok_or(ParserError::UnexpectedEOF)?;
-        if token.ty == typ {
-            Ok(token)
-        } else {
-            Err(ParserError::UnexpectedToken(token.ty))
-        }
+    fn check(&self, typ: TokenType) -> bool {
+        self.current().is_some_and(|token| token.ty == typ)
     }
     #[allow(unused)]
-    fn consume(&mut self, typ: TokenType) -> Result<Token, ParserError> {
-        let token = self.check(typ)?.clone();
-        self.advance();
+    fn expect(&mut self, ty: TokenType) -> Result<Token, ParserError> {
+        let token = self.current().ok_or(ParserError::UnexpectedEOF)?;
+
+        if token.ty != ty {
+            return Err(ParserError::UnexpectedToken(token.ty));
+        }
+
+        let token = token.clone();
+        self.pos += 1;
         Ok(token)
     }
 
