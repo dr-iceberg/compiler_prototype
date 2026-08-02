@@ -37,6 +37,12 @@ impl Parser {
             Err(ParserError::UnexpectedToken(token.ty))
         }
     }
+    #[allow(unused)]
+    fn consume(&mut self, typ: TokenType) -> Result<Token, ParserError> {
+        let token = self.check(typ)?.clone();
+        self.advance();
+        Ok(token)
+    }
 
     fn check_any(&self, types: &[TokenType]) -> Result<&Token, ParserError> {
         let token = self.current().ok_or(ParserError::UnexpectedEOF)?;
@@ -182,6 +188,7 @@ impl Parser {
 
         match token.ty {
             TokenType::Int => Ok(Expr::Literal(Literal::Interger(token.st.parse().unwrap()))),
+            TokenType::True => Ok(Expr::Literal(Literal::Bool(token.st.parse().unwrap()))),
             _ => Err(ParserError::UnexpectedToken(token.ty)),
         }
     }

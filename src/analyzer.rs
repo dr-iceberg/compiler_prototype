@@ -39,6 +39,12 @@ impl SemanticAnalyzer {
                         return Err(SemanticError::FunctionReturnTypeMismatch(
                             function.id.clone(),
                         ));
+                    } else {
+                        if function.id == "main" && function.return_type != Type::Int {
+                            return Err(SemanticError::MainFunctionInvalidReturnType(
+                                function.return_type.clone(),
+                            ));
+                        }
                     }
                 }
                 _ => {
@@ -82,6 +88,7 @@ impl Default for SemanticAnalyzer {
 #[derive(Debug)]
 pub enum SemanticError {
     FunctionReturnTypeMismatch(String),
+    MainFunctionInvalidReturnType(Type),
 }
 
 impl Display for SemanticError {
@@ -89,6 +96,13 @@ impl Display for SemanticError {
         match self {
             Self::FunctionReturnTypeMismatch(id) => {
                 write!(f, "Return type mismatch in function {id}")
+            }
+            Self::MainFunctionInvalidReturnType(ty) => {
+                write!(
+                    f,
+                    "Invalid return type in function 'main'. Expected 'int' found {:?}.",
+                    ty
+                )
             }
         }
     }

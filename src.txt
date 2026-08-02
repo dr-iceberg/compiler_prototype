@@ -1,4 +1,4 @@
 
-fn main() -> int {
-    return 0;
+fn main() -> bool {
+    return true;
 }

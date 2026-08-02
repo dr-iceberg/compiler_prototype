@@ -3,5 +3,5 @@ source_filename = "main"
 
 define i32 @main() {
 entry:
-  ret i32 0
+  ret i32 68
 }
