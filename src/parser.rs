@@ -5,14 +5,21 @@ use crate::{
     tokenize::{Token, TokenType},
 };
 
-pub struct Parser {
+pub struct Parser<'a> {
     tokens: Vec<Token>,
     pos: usize,
+    errors: Vec<ParserError>,
+    source: &'a str,
 }
 
-impl Parser {
-    pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, pos: 0 }
+impl<'a> Parser<'a> {
+    pub fn new(tokens: Vec<Token>, source: &'a str) -> Self {
+        Self {
+            tokens,
+            pos: 0,
+            errors: Vec::new(),
+            source,
+        }
     }
 
     fn current(&self) -> Option<&Token> {
@@ -25,70 +32,85 @@ impl Parser {
         }
     }
 
+    fn match_token(&mut self, ty: TokenType) -> bool {
+        if self.check(ty) {
+            self.advance();
+            true
+        } else {
+            false
+        }
+    }
+
     fn check(&self, typ: TokenType) -> bool {
         self.current().is_some_and(|token| token.ty == typ)
     }
-    #[allow(unused)]
-    fn expect(&mut self, ty: TokenType) -> Result<Token, ParserError> {
-        let token = self.current().ok_or(ParserError::UnexpectedEOF)?;
+
+    // this function is a #[must_use] in order to avoid forgetting the ? operator
+    #[must_use]
+    fn expect(&mut self, ty: TokenType) -> Option<Token> {
+        let token = match self.current() {
+            Some(token) => token,
+            None => {
+                self.errors.push(ParserError::UnexpectedEOF);
+                return None;
+            }
+        };
 
         if token.ty != ty {
-            return Err(ParserError::UnexpectedToken(token.ty));
+            self.errors.push(ParserError::UnexpectedToken(token.ty));
+            return None;
         }
 
-        let token = token.clone();
-        self.pos += 1;
-        Ok(token)
-    }
-
-    fn check_any(&self, types: &[TokenType]) -> Result<&Token, ParserError> {
-        let token = self.current().ok_or(ParserError::UnexpectedEOF)?;
-        for typ in types {
-            if token.ty == *typ {
-                return Ok(token);
-            }
-        }
-        Err(ParserError::UnexpectedToken(token.ty))
+        let token = *token;
+        self.advance();
+        Some(token)
     }
 
     pub fn parse_program(&mut self) -> Result<Program, Vec<ParserError>> {
         let mut decls: Vec<Decl> = Vec::new();
-        let mut errors: Vec<ParserError> = Vec::new();
 
         while let Some(token) = self.current() {
             match token.ty {
                 TokenType::Fn => match self.parse_function() {
-                    Ok(function) => {
+                    Some(function) => {
                         decls.push(Decl::Function(function));
                     }
-                    Err(err) => {
-                        errors.push(err);
+                    None => {
+                        self.skip_to_next_decl();
                     }
                 },
-                _ => {
-                    errors.push(ParserError::UnexpectedToken(token.ty));
+                ty => {
+                    self.errors.push(ParserError::UnexpectedToken(ty));
+                    self.skip_to_next_decl();
                 }
             }
         }
-
-        Ok(Program {
-            declarations: decls,
-        })
+        if self.errors.is_empty() {
+            Ok(Program {
+                declarations: decls,
+            })
+        } else {
+            Err(std::mem::take(&mut self.errors))
+        }
     }
 
-    fn parse_function(&mut self) -> Result<Function, ParserError> {
-        // skip the fn keyword
-        self.advance();
+    fn skip_to_next_decl(&mut self) {
+        while let Some(token) = self.current() {
+            if token.ty == TokenType::Fn {
+                return;
+            }
+            self.advance();
+        }
+    }
 
-        // check if next token is an id
-        let id = self.check(TokenType::Id)?.st.clone();
-        self.advance();
-
+    fn parse_function(&mut self) -> Option<Function> {
+        self.expect(TokenType::Fn)?;
+        let id = self.expect(TokenType::Id)?.lexeme(self.source).to_string();
         let parameters = self.parse_params()?;
         let return_type = self.parse_function_return_type()?;
         let body = self.parse_function_body()?;
 
-        Ok(Function {
+        Some(Function {
             id,
             parameters,
             body,
@@ -96,36 +118,15 @@ impl Parser {
         })
     }
 
-    fn convert_token_to_type(token: &Token) -> Result<Type, ParserError> {
-        match token.ty {
-            TokenType::IntType => Ok(Type::Int),
-            TokenType::FloatType => Ok(Type::Float),
-            TokenType::StringType => Ok(Type::String),
-            TokenType::BoolType => Ok(Type::Bool),
-            _ => Err(ParserError::UnexpectedToken(token.ty)),
-        }
-    }
-
-    fn parse_params(&mut self) -> Result<Vec<Parameter>, ParserError> {
+    fn parse_params(&mut self) -> Option<Vec<Parameter>> {
         let mut params: Vec<Parameter> = Vec::new();
-        // left parenthesis must be present
-        let _ = self.check(TokenType::LPar)?;
-        self.advance();
+        self.expect(TokenType::LPar)?;
         while let Some(token) = self.current() {
             if token.ty != TokenType::RPar {
-                let name = self.check(TokenType::Id)?.st.clone();
-                self.advance();
-                let _ = self.check(TokenType::Colon)?;
-                self.advance();
-                let ty_token = self.check_any(&[
-                    TokenType::IntType,
-                    TokenType::FloatType,
-                    TokenType::StringType,
-                    TokenType::BoolType,
-                ])?;
-                let ty = Self::convert_token_to_type(ty_token)?;
+                let name = self.expect(TokenType::Id)?.lexeme(self.source).to_string();
+                self.expect(TokenType::Colon)?;
+                let ty = self.parse_type()?;
                 let param = Parameter { name, ty };
-                self.advance();
                 params.push(param);
             } else {
                 self.advance();
@@ -133,60 +134,84 @@ impl Parser {
             }
         }
 
-        Ok(params)
+        Some(params)
     }
 
-    fn parse_function_return_type(&mut self) -> Result<Type, ParserError> {
-        match self.check(TokenType::ArrowRight) {
-            Ok(_) => {
+    fn parse_type(&mut self) -> Option<Type> {
+        match self.current()?.ty {
+            TokenType::IntType => {
                 self.advance();
-                let ty_token = self.check_any(&[
-                    TokenType::IntType,
-                    TokenType::FloatType,
-                    TokenType::StringType,
-                    TokenType::BoolType,
-                ])?;
-                let ty = Self::convert_token_to_type(ty_token)?;
-                self.advance();
-                Ok(ty)
+                Some(Type::Int)
             }
-            Err(err) => match err {
-                ParserError::UnexpectedEOF => Err(err),
-                ParserError::UnexpectedToken(_) => Ok(Type::Void),
-            },
+            TokenType::FloatType => {
+                self.advance();
+                Some(Type::Float)
+            }
+            TokenType::BoolType => {
+                self.advance();
+                Some(Type::Bool)
+            }
+            TokenType::StringType => {
+                self.advance();
+                Some(Type::String)
+            }
+            ty => {
+                self.errors.push(ParserError::UnexpectedToken(ty));
+                None
+            }
         }
     }
 
-    fn parse_function_body(&mut self) -> Result<Vec<Stmt>, ParserError> {
+    fn parse_function_return_type(&mut self) -> Option<Type> {
+        if self.match_token(TokenType::ArrowRight) {
+            self.parse_type()
+        } else {
+            Some(Type::Void)
+        }
+    }
+
+    fn parse_function_body(&mut self) -> Option<Vec<Stmt>> {
         let mut statements: Vec<Stmt> = Vec::new();
-        self.check(TokenType::LBrace)?;
-        self.advance();
+        self.expect(TokenType::LBrace)?;
         while let Some(token) = self.current() {
-            match token.ty {
-                TokenType::Return => {
-                    self.advance();
-                    let expr: Expr = self.parse_expr()?;
-                    self.advance();
-                    let stmt = Stmt::Return(expr);
-                    statements.push(stmt);
-                }
-                TokenType::RBrace => {
-                    self.advance();
-                    break;
-                }
-                _ => return Err(ParserError::UnexpectedToken(token.ty)),
+            if token.ty == TokenType::RBrace {
+                break;
             }
+            statements.push(self.parse_stmt()?);
         }
-        Ok(statements)
+        self.expect(TokenType::RBrace)?;
+
+        Some(statements)
     }
 
-    fn parse_expr(&mut self) -> Result<Expr, ParserError> {
-        let token = self.advance().ok_or(ParserError::UnexpectedEOF)?;
+    fn parse_stmt(&mut self) -> Option<Stmt> {
+        match self.current()?.ty {
+            TokenType::Return => self.parse_return_stmt(),
+            ty => {
+                self.errors.push(ParserError::UnexpectedToken(ty));
+                None
+            }
+        }
+    }
 
-        match token.ty {
-            TokenType::Int => Ok(Expr::Literal(Literal::Interger(token.st.parse().unwrap()))),
-            TokenType::True => Ok(Expr::Literal(Literal::Bool(token.st.parse().unwrap()))),
-            _ => Err(ParserError::UnexpectedToken(token.ty)),
+    fn parse_return_stmt(&mut self) -> Option<Stmt> {
+        self.expect(TokenType::Return)?;
+        let expr = self.parse_expr()?;
+        self.expect(TokenType::Semicolon)?;
+        Some(Stmt::Return(expr))
+    }
+
+    fn parse_expr(&mut self) -> Option<Expr> {
+        match self.current()?.ty {
+            TokenType::Int => {
+                let token = self.expect(TokenType::Int)?;
+                let value = token.lexeme(self.source).parse().unwrap();
+                Some(Expr::Literal(Literal::Interger(value)))
+            }
+            ty => {
+                self.errors.push(ParserError::UnexpectedToken(ty));
+                None
+            }
         }
     }
 }

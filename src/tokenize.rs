@@ -152,6 +152,13 @@ impl<'a> Lexer<'a> {
         Self { source, line: 1 }
     }
 
+    #[allow(unused)]
+    fn skip_to_next_whitespace(&mut self, chars: &mut Peekable<CharIndices>) {
+        todo!(
+            "Skip to next whitespace after finding unexpected character in the middle of parsing a string or a number"
+        )
+    }
+
     pub fn tokenize(&mut self) -> Result<Vec<Token>, Vec<LexerError>> {
         let mut tokens: Vec<Token> = vec![];
         let mut errors: Vec<LexerError> = vec![];
