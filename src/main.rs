@@ -1,7 +1,10 @@
+#[allow(unused)]
 use compiler_prototype::analyzer::SemanticAnalyzer;
+#[allow(unused)]
 use compiler_prototype::codegen::CodeGen;
 use compiler_prototype::parser;
 use compiler_prototype::tokenize::{Lexer, Token};
+#[allow(unused)]
 use inkwell::context::Context;
 use std::error::Error;
 use std::io::BufReader;
@@ -31,7 +34,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             let mut parser = parser::Parser::new(tokens, &source);
             match parser.parse_program() {
                 Ok(program) => {
-                    //println!("{:?}", program);
+                    println!("{:?}", program);
+                    /*
                     let analyzer = SemanticAnalyzer::default();
                     match analyzer.check_program(&program) {
                         Ok(_) => {
@@ -43,6 +47,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                             eprintln!("Semantic error: {err}");
                         }
                     }
+                    */
                 }
                 Err(errors) => {
                     for err in errors {

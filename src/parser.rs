@@ -1,7 +1,7 @@
-use std::{error::Error, fmt::Display};
+use std::{error::Error, fmt::Display, str::FromStr};
 
 use crate::{
-    grammar::{Decl, Expr, Function, Literal, Parameter, Program, Stmt, Type},
+    grammar::{BinOp, Decl, Expr, Function, Literal, Parameter, Program, Stmt, Type, UnaryOp},
     tokenize::{Token, TokenType},
 };
 
@@ -202,21 +202,180 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expr(&mut self) -> Option<Expr> {
+        self.parse_equality()
+    }
+
+    fn parse_equality(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_comparison()?;
+
+        loop {
+            let op = if self.match_token(TokenType::EqualEqual) {
+                BinOp::Equal
+            } else if self.match_token(TokenType::BangEqual) {
+                BinOp::NotEqual
+            } else {
+                break;
+            };
+            let right = self.parse_comparison()?;
+
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+            }
+        }
+
+        Some(expr)
+    }
+
+    fn parse_comparison(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_term()?;
+
+        loop {
+            let op = if self.match_token(TokenType::Less) {
+                BinOp::Less
+            } else if self.match_token(TokenType::LessEqual) {
+                BinOp::LessEqual
+            } else if self.match_token(TokenType::Greater) {
+                BinOp::Greater
+            } else if self.match_token(TokenType::GreaterEqual) {
+                BinOp::GreaterEqual
+            } else {
+                break;
+            };
+            let right = self.parse_term()?;
+
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+            }
+        }
+
+        Some(expr)
+    }
+
+    fn parse_term(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_factor()?;
+
+        loop {
+            let op = if self.match_token(TokenType::Plus) {
+                BinOp::Add
+            } else if self.match_token(TokenType::Minus) {
+                BinOp::Subtract
+            } else {
+                break;
+            };
+            let right = self.parse_factor()?;
+
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+            }
+        }
+
+        Some(expr)
+    }
+
+    fn parse_factor(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_unary()?;
+
+        loop {
+            let op = if self.match_token(TokenType::Asterisk) {
+                BinOp::Multiply
+            } else if self.match_token(TokenType::ForwardSlash) {
+                BinOp::Divide
+            } else {
+                break;
+            };
+            let right = self.parse_unary()?;
+
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+            }
+        }
+
+        Some(expr)
+    }
+
+    fn parse_unary(&mut self) -> Option<Expr> {
+        if self.match_token(TokenType::Minus) {
+            return Some(Expr::Unary {
+                op: UnaryOp::Negate,
+                expr: Box::new(self.parse_unary()?),
+            });
+        }
+        if self.match_token(TokenType::Bang) {
+            return Some(Expr::Unary {
+                op: UnaryOp::Not,
+                expr: Box::new(self.parse_unary()?),
+            });
+        }
+
+        self.parse_primary()
+    }
+
+    fn parse_primary(&mut self) -> Option<Expr> {
         match self.current()?.ty {
             TokenType::Int => {
                 let token = self.expect(TokenType::Int)?;
-                let value: i128 = match token.lexeme(self.source).parse() {
-                    Ok(val) => val,
-                    Err(err) => {
-                        self.errors
-                            .push(ParserError::LiteralParsingError(Box::new(err)));
-                        return None;
-                    }
-                };
-                Some(Expr::Literal(Literal::Interger(value)))
+                Some(Expr::Literal(Literal::Interger(
+                    self.get_token_value::<i128>(&token)?,
+                )))
+            }
+            TokenType::Float => {
+                let token = self.expect(TokenType::Float)?;
+                Some(Expr::Literal(Literal::Float(
+                    self.get_token_value::<f64>(&token)?,
+                )))
+            }
+            TokenType::True => {
+                let token = self.expect(TokenType::True)?;
+                Some(Expr::Literal(Literal::Bool(
+                    self.get_token_value::<bool>(&token)?,
+                )))
+            }
+            TokenType::False => {
+                let token = self.expect(TokenType::False)?;
+                Some(Expr::Literal(Literal::Bool(
+                    self.get_token_value::<bool>(&token)?,
+                )))
+            }
+            TokenType::Str => {
+                let token = self.expect(TokenType::Str)?;
+                Some(Expr::Literal(Literal::String(
+                    self.get_token_value::<String>(&token)?,
+                )))
+            }
+            TokenType::LPar => {
+                self.expect(TokenType::LPar)?;
+
+                let expr = self.parse_expr()?;
+
+                self.expect(TokenType::RPar)?;
+                Some(expr)
             }
             ty => {
                 self.errors.push(ParserError::UnexpectedToken(ty));
+                None
+            }
+        }
+    }
+
+    fn get_token_value<T>(&mut self, token: &Token) -> Option<T>
+    where
+        T: FromStr,
+        <T as FromStr>::Err: std::error::Error,
+        <T as FromStr>::Err: 'static,
+    {
+        match token.lexeme(self.source).parse::<T>() {
+            Ok(val) => Some(val),
+            Err(err) => {
+                self.errors
+                    .push(ParserError::LiteralParsingError(Box::new(err)));
                 None
             }
         }

@@ -31,17 +31,27 @@ pub enum UnaryOp {
 
 #[derive(Debug, Clone)]
 pub enum BinOp {
+    /// `+`
     Add,
+    /// `-`
     Subtract,
+    /// `*`
     Multiply,
+    /// `/`
     Divide,
 
+    /// `==`
     Equal,
+    /// `!=`
     NotEqual,
 
+    /// `<`
     Less,
+    /// `<=`
     LessEqual,
+    /// `>`
     Greater,
+    /// `>=`
     GreaterEqual,
 }
 

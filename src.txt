@@ -1,4 +1,4 @@
 
 fn main() -> int {
-    return 122;
+    return 1 * 2 * 3 / 4;
 }

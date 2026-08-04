@@ -189,9 +189,9 @@ impl<'a> Lexer<'a> {
                     if ch2 == '=' {
                         tokens.push(Token::new(TokenType::EqualEqual, Span::new(pos, pos2)));
                         chars.next();
+                    } else {
+                        tokens.push(Token::new(TokenType::Equal, Span::new_single_char(pos)));
                     }
-                } else {
-                    tokens.push(Token::new(TokenType::Equal, Span::new_single_char(pos)));
                 }
             } else if ch == '+' {
                 tokens.push(Token::new(TokenType::Plus, Span::new_single_char(pos)));
@@ -211,7 +211,14 @@ impl<'a> Lexer<'a> {
             } else if ch == ':' {
                 tokens.push(Token::new(TokenType::Colon, Span::new_single_char(pos)));
             } else if ch == '!' {
-                tokens.push(Token::new(TokenType::Bang, Span::new_single_char(pos)));
+                if let Some(&(pos2, ch2)) = chars.peek() {
+                    if ch2 == '=' {
+                        tokens.push(Token::new(TokenType::BangEqual, Span::new(pos, pos2)));
+                        chars.next();
+                    } else {
+                        tokens.push(Token::new(TokenType::Bang, Span::new_single_char(pos)));
+                    }
+                }
             } else if ch == '(' {
                 tokens.push(Token::new(TokenType::LPar, Span::new_single_char(pos)));
             } else if ch == ')' {
@@ -225,18 +232,18 @@ impl<'a> Lexer<'a> {
                     if ch2 == '=' {
                         tokens.push(Token::new(TokenType::LessEqual, Span::new(pos, pos2)));
                         chars.next();
+                    } else {
+                        tokens.push(Token::new(TokenType::Less, Span::new_single_char(pos)));
                     }
-                } else {
-                    tokens.push(Token::new(TokenType::Less, Span::new_single_char(pos)));
                 }
             } else if ch == '>' {
                 if let Some(&(pos2, ch2)) = chars.peek() {
                     if ch2 == '=' {
                         tokens.push(Token::new(TokenType::GreaterEqual, Span::new(pos, pos2)));
                         chars.next();
+                    } else {
+                        tokens.push(Token::new(TokenType::Greater, Span::new_single_char(pos)));
                     }
-                } else {
-                    tokens.push(Token::new(TokenType::Greater, Span::new_single_char(pos)));
                 }
             } else if ch == '\n' {
                 self.line += 1;
@@ -251,12 +258,12 @@ impl<'a> Lexer<'a> {
                                 break;
                             }
                         }
+                    } else {
+                        tokens.push(Token::new(
+                            TokenType::ForwardSlash,
+                            Span::new_single_char(pos),
+                        ));
                     }
-                } else {
-                    tokens.push(Token::new(
-                        TokenType::ForwardSlash,
-                        Span::new_single_char(pos),
-                    ));
                 }
             } else {
                 errors.push(LexerError::UnexepectedChar(self.line, ch));
