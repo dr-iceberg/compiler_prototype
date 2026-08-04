@@ -21,7 +21,7 @@ impl<'a> Parser<'a> {
             source,
         }
     }
-
+    #[must_use]
     fn current(&self) -> Option<&Token> {
         self.tokens.get(self.pos)
     }
@@ -205,7 +205,14 @@ impl<'a> Parser<'a> {
         match self.current()?.ty {
             TokenType::Int => {
                 let token = self.expect(TokenType::Int)?;
-                let value = token.lexeme(self.source).parse().unwrap();
+                let value: i128 = match token.lexeme(self.source).parse() {
+                    Ok(val) => val,
+                    Err(err) => {
+                        self.errors
+                            .push(ParserError::LiteralParsingError(Box::new(err)));
+                        return None;
+                    }
+                };
                 Some(Expr::Literal(Literal::Interger(value)))
             }
             ty => {
@@ -219,6 +226,7 @@ impl<'a> Parser<'a> {
 #[derive(Debug)]
 pub enum ParserError {
     UnexpectedEOF,
+    LiteralParsingError(Box<dyn Error>),
     UnexpectedToken(TokenType),
 }
 
@@ -230,6 +238,9 @@ impl Display for ParserError {
             }
             ParserError::UnexpectedToken(token) => {
                 write!(f, "Unexpected token: {:?}", token)
+            }
+            ParserError::LiteralParsingError(err) => {
+                write!(f, "Error when parsing a literal: {err}")
             }
         }
     }
