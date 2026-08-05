@@ -1,6 +1,9 @@
 use std::{error::Error, fmt::Display, iter::Peekable, str::CharIndices};
 
-use crate::tokenize::LexerError::{UnexepectedChar, UnexepectedEOF};
+use crate::{
+    file::SourceFile,
+    tokenize::LexerError::{UnexepectedChar, UnexepectedEOF},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenType {
@@ -140,16 +143,22 @@ impl Token {
         let end = self.span.end() as usize;
         &source[start..=end]
     }
+    pub fn pos(&self) -> u32 {
+        self.span.start()
+    }
 }
 
 pub struct Lexer<'a> {
-    source: &'a str,
+    source_file: &'a SourceFile,
     line: u64,
 }
 
 impl<'a> Lexer<'a> {
-    pub fn new(source: &'a str) -> Self {
-        Self { source, line: 1 }
+    pub fn new(source_file: &'a SourceFile) -> Self {
+        Self {
+            source_file,
+            line: 1,
+        }
     }
 
     #[allow(unused)]
@@ -163,7 +172,7 @@ impl<'a> Lexer<'a> {
         let mut tokens: Vec<Token> = vec![];
         let mut errors: Vec<LexerError> = vec![];
 
-        let mut chars = self.source.char_indices().peekable();
+        let mut chars = self.source_file.source().char_indices().peekable();
 
         while let Some((pos, ch)) = chars.next() {
             if ch.is_ascii_alphabetic() || ch == '_' {

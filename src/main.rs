@@ -2,13 +2,12 @@
 use compiler_prototype::analyzer::SemanticAnalyzer;
 #[allow(unused)]
 use compiler_prototype::codegen::CodeGen;
+use compiler_prototype::file::SourceFile;
 use compiler_prototype::parser;
 use compiler_prototype::tokenize::{Lexer, Token};
 #[allow(unused)]
 use inkwell::context::Context;
 use std::error::Error;
-use std::io::BufReader;
-use std::{fs::File, io::Read};
 
 #[allow(unused)]
 fn print_tokens(tokens: &Vec<Token>, source: &str) {
@@ -18,20 +17,14 @@ fn print_tokens(tokens: &Vec<Token>, source: &str) {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let file = File::open("src.txt")?;
-    let mut source = String::new();
-    {
-        let mut reader = BufReader::new(file);
-        reader.read_to_string(&mut source)?;
-    }
-
-    let mut lexer = Lexer::new(&source);
+    let file = SourceFile::new("src.txt")?;
+    let mut lexer = Lexer::new(&file);
 
     match lexer.tokenize() {
         Ok(tokens) => {
             //print_tokens(&tokens, &source);
 
-            let mut parser = parser::Parser::new(tokens, &source);
+            let mut parser = parser::Parser::new(tokens, &file);
             match parser.parse_program() {
                 Ok(program) => {
                     println!("{:?}", program);

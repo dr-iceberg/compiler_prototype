@@ -1,6 +1,7 @@
 use std::{error::Error, fmt::Display, str::FromStr};
 
 use crate::{
+    file::SourceFile,
     grammar::{BinOp, Decl, Expr, Function, Literal, Parameter, Program, Stmt, Type, UnaryOp},
     tokenize::{Token, TokenType},
 };
@@ -8,12 +9,12 @@ use crate::{
 pub struct Parser<'a> {
     tokens: Vec<Token>,
     pos: usize,
-    errors: Vec<ParserError>,
-    source: &'a str,
+    errors: Vec<ParserError<'a>>,
+    source: &'a SourceFile,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: Vec<Token>, source: &'a str) -> Self {
+    pub fn new(tokens: Vec<Token>, source: &'a SourceFile) -> Self {
         Self {
             tokens,
             pos: 0,
@@ -57,7 +58,10 @@ impl<'a> Parser<'a> {
         };
 
         if token.ty != ty {
-            self.errors.push(ParserError::UnexpectedToken(token.ty));
+            self.errors.push(ParserError::UnexpectedToken {
+                token: *token,
+                source: self.source,
+            });
             return None;
         }
 
@@ -66,7 +70,7 @@ impl<'a> Parser<'a> {
         Some(token)
     }
 
-    pub fn parse_program(&mut self) -> Result<Program, Vec<ParserError>> {
+    pub fn parse_program(&mut self) -> Result<Program, Vec<ParserError<'_>>> {
         let mut decls: Vec<Decl> = Vec::new();
 
         while let Some(token) = self.current() {
@@ -79,8 +83,11 @@ impl<'a> Parser<'a> {
                         self.skip_to_next_decl();
                     }
                 },
-                ty => {
-                    self.errors.push(ParserError::UnexpectedToken(ty));
+                _ => {
+                    self.errors.push(ParserError::UnexpectedToken {
+                        token: *token,
+                        source: self.source,
+                    });
                     self.skip_to_next_decl();
                 }
             }
@@ -105,7 +112,10 @@ impl<'a> Parser<'a> {
 
     fn parse_function(&mut self) -> Option<Function> {
         self.expect(TokenType::Fn)?;
-        let id = self.expect(TokenType::Id)?.lexeme(self.source).to_string();
+        let id = self
+            .expect(TokenType::Id)?
+            .lexeme(self.source.source())
+            .to_string();
         let parameters = self.parse_params()?;
         let return_type = self.parse_function_return_type()?;
         let body = self.parse_function_body()?;
@@ -123,7 +133,10 @@ impl<'a> Parser<'a> {
         self.expect(TokenType::LPar)?;
         while let Some(token) = self.current() {
             if token.ty != TokenType::RPar {
-                let name = self.expect(TokenType::Id)?.lexeme(self.source).to_string();
+                let name = self
+                    .expect(TokenType::Id)?
+                    .lexeme(self.source.source())
+                    .to_string();
                 self.expect(TokenType::Colon)?;
                 let ty = self.parse_type()?;
                 let param = Parameter { name, ty };
@@ -155,8 +168,11 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Some(Type::String)
             }
-            ty => {
-                self.errors.push(ParserError::UnexpectedToken(ty));
+            _ => {
+                self.errors.push(ParserError::UnexpectedToken {
+                    token: *self.current()?,
+                    source: self.source,
+                });
                 None
             }
         }
@@ -187,8 +203,11 @@ impl<'a> Parser<'a> {
     fn parse_stmt(&mut self) -> Option<Stmt> {
         match self.current()?.ty {
             TokenType::Return => self.parse_return_stmt(),
-            ty => {
-                self.errors.push(ParserError::UnexpectedToken(ty));
+            _ => {
+                self.errors.push(ParserError::UnexpectedToken {
+                    token: *self.current()?,
+                    source: self.source,
+                });
                 None
             }
         }
@@ -323,31 +342,25 @@ impl<'a> Parser<'a> {
             TokenType::Int => {
                 let token = self.expect(TokenType::Int)?;
                 Some(Expr::Literal(Literal::Interger(
-                    self.get_token_value::<i128>(&token)?,
+                    self.get_token_value(&token)?,
                 )))
             }
             TokenType::Float => {
                 let token = self.expect(TokenType::Float)?;
-                Some(Expr::Literal(Literal::Float(
-                    self.get_token_value::<f64>(&token)?,
-                )))
+                Some(Expr::Literal(Literal::Float(self.get_token_value(&token)?)))
             }
             TokenType::True => {
                 let token = self.expect(TokenType::True)?;
-                Some(Expr::Literal(Literal::Bool(
-                    self.get_token_value::<bool>(&token)?,
-                )))
+                Some(Expr::Literal(Literal::Bool(self.get_token_value(&token)?)))
             }
             TokenType::False => {
                 let token = self.expect(TokenType::False)?;
-                Some(Expr::Literal(Literal::Bool(
-                    self.get_token_value::<bool>(&token)?,
-                )))
+                Some(Expr::Literal(Literal::Bool(self.get_token_value(&token)?)))
             }
             TokenType::Str => {
                 let token = self.expect(TokenType::Str)?;
                 Some(Expr::Literal(Literal::String(
-                    self.get_token_value::<String>(&token)?,
+                    self.get_token_value(&token)?,
                 )))
             }
             TokenType::LPar => {
@@ -358,8 +371,11 @@ impl<'a> Parser<'a> {
                 self.expect(TokenType::RPar)?;
                 Some(expr)
             }
-            ty => {
-                self.errors.push(ParserError::UnexpectedToken(ty));
+            _ => {
+                self.errors.push(ParserError::UnexpectedToken {
+                    token: *self.current()?,
+                    source: self.source,
+                });
                 None
             }
         }
@@ -371,7 +387,7 @@ impl<'a> Parser<'a> {
         <T as FromStr>::Err: std::error::Error,
         <T as FromStr>::Err: 'static,
     {
-        match token.lexeme(self.source).parse::<T>() {
+        match token.lexeme(self.source.source()).parse::<T>() {
             Ok(val) => Some(val),
             Err(err) => {
                 self.errors
@@ -383,20 +399,28 @@ impl<'a> Parser<'a> {
 }
 
 #[derive(Debug)]
-pub enum ParserError {
+pub enum ParserError<'a> {
     UnexpectedEOF,
     LiteralParsingError(Box<dyn Error>),
-    UnexpectedToken(TokenType),
+    UnexpectedToken {
+        token: Token,
+        source: &'a SourceFile,
+    },
 }
 
-impl Display for ParserError {
+impl<'a> Display for ParserError<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ParserError::UnexpectedEOF => {
                 write!(f, "Unexpected end of file")
             }
-            ParserError::UnexpectedToken(token) => {
-                write!(f, "Unexpected token: {:?}", token)
+            ParserError::UnexpectedToken { token, source } => {
+                write!(
+                    f,
+                    "Unexpected token: '{}' at line: {} ",
+                    token.lexeme(source.source()),
+                    source.get_line_num(token.pos())
+                )
             }
             ParserError::LiteralParsingError(err) => {
                 write!(f, "Error when parsing a literal: {err}")
@@ -405,4 +429,4 @@ impl Display for ParserError {
     }
 }
 
-impl Error for ParserError {}
+impl<'a> Error for ParserError<'a> {}
