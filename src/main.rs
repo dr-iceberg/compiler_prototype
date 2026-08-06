@@ -27,20 +27,22 @@ fn main() -> Result<(), Box<dyn Error>> {
             let mut parser = parser::Parser::new(tokens, &file);
             match parser.parse_program() {
                 Ok(program) => {
-                    println!("{:?}", program);
-                    /*
+                    // println!("{:#?}", program);
+                    // /*
                     let analyzer = SemanticAnalyzer::default();
                     match analyzer.check_program(&program) {
                         Ok(_) => {
+                            /*
                             let ctx = Context::create();
                             let mut code_generator = CodeGen::new(&ctx);
                             code_generator.compile_program(&program)?;
+                            */
                         }
                         Err(err) => {
                             eprintln!("Semantic error: {err}");
                         }
                     }
-                    */
+                    // */
                 }
                 Err(errors) => {
                     for err in errors {

@@ -110,6 +110,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    #[must_use]
     fn parse_function(&mut self) -> Option<Function> {
         self.expect(TokenType::Fn)?;
         let id = self
@@ -128,6 +129,7 @@ impl<'a> Parser<'a> {
         })
     }
 
+    #[must_use]
     fn parse_params(&mut self) -> Option<Vec<Parameter>> {
         let mut params: Vec<Parameter> = Vec::new();
         self.expect(TokenType::LPar)?;
@@ -150,6 +152,7 @@ impl<'a> Parser<'a> {
         Some(params)
     }
 
+    #[must_use]
     fn parse_type(&mut self) -> Option<Type> {
         match self.current()?.ty {
             TokenType::IntType => {
@@ -178,6 +181,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    #[must_use]
     fn parse_function_return_type(&mut self) -> Option<Type> {
         if self.match_token(TokenType::ArrowRight) {
             self.parse_type()
@@ -186,6 +190,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    #[must_use]
     fn parse_function_body(&mut self) -> Option<Vec<Stmt>> {
         let mut statements: Vec<Stmt> = Vec::new();
         self.expect(TokenType::LBrace)?;
@@ -200,6 +205,7 @@ impl<'a> Parser<'a> {
         Some(statements)
     }
 
+    #[must_use]
     fn parse_stmt(&mut self) -> Option<Stmt> {
         match self.current()?.ty {
             TokenType::Return => self.parse_return_stmt(),
@@ -213,6 +219,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    #[must_use]
     fn parse_return_stmt(&mut self) -> Option<Stmt> {
         self.expect(TokenType::Return)?;
         let expr = self.parse_expr()?;
@@ -220,10 +227,12 @@ impl<'a> Parser<'a> {
         Some(Stmt::Return(expr))
     }
 
+    #[must_use]
     fn parse_expr(&mut self) -> Option<Expr> {
         self.parse_equality()
     }
 
+    #[must_use]
     fn parse_equality(&mut self) -> Option<Expr> {
         let mut expr = self.parse_comparison()?;
 
@@ -247,6 +256,7 @@ impl<'a> Parser<'a> {
         Some(expr)
     }
 
+    #[must_use]
     fn parse_comparison(&mut self) -> Option<Expr> {
         let mut expr = self.parse_term()?;
 
@@ -274,6 +284,7 @@ impl<'a> Parser<'a> {
         Some(expr)
     }
 
+    #[must_use]
     fn parse_term(&mut self) -> Option<Expr> {
         let mut expr = self.parse_factor()?;
 
@@ -297,6 +308,7 @@ impl<'a> Parser<'a> {
         Some(expr)
     }
 
+    #[must_use]
     fn parse_factor(&mut self) -> Option<Expr> {
         let mut expr = self.parse_unary()?;
 
@@ -320,6 +332,7 @@ impl<'a> Parser<'a> {
         Some(expr)
     }
 
+    #[must_use]
     fn parse_unary(&mut self) -> Option<Expr> {
         if self.match_token(TokenType::Minus) {
             return Some(Expr::Unary {
@@ -337,6 +350,7 @@ impl<'a> Parser<'a> {
         self.parse_primary()
     }
 
+    #[must_use]
     fn parse_primary(&mut self) -> Option<Expr> {
         match self.current()?.ty {
             TokenType::Int => {
@@ -381,6 +395,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    #[must_use]
     fn get_token_value<T>(&mut self, token: &Token) -> Option<T>
     where
         T: FromStr,
