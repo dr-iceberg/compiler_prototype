@@ -38,8 +38,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                             code_generator.compile_program(&program)?;
                             */
                         }
-                        Err(err) => {
-                            eprintln!("Semantic error: {err}");
+                        Err(errors) => {
+                            for err in errors {
+                                eprintln!("Semantic error: {err}");
+                            }
+                            return Ok(());
                         }
                     }
                     // */

@@ -14,39 +14,65 @@ impl SemanticAnalyzer {
         }
     }
 
-    pub fn check_program(&self, program: &Program) -> Result<(), SemanticError> {
+    pub fn check_program(&self, program: &Program) -> Result<(), Vec<SemanticError>> {
+        let mut errors: Vec<SemanticError> = Vec::new();
         for decl in &program.declarations {
             match decl {
                 Decl::Function(function) => {
-                    self.check_function(function)?;
+                    if let Err(errs) = self.check_function(function) {
+                        errors.extend(errs);
+                    }
                 }
             }
         }
-        Ok(())
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
     }
 
-    fn check_function(&self, function: &Function) -> Result<(), SemanticError> {
-        self.check_function_return_type(function)?;
-        Ok(())
+    fn check_function(&self, function: &Function) -> Result<(), Vec<SemanticError>> {
+        let mut errors: Vec<SemanticError> = Vec::new();
+        if let Err(err) = self.check_function_return_type(function) {
+            errors.extend(err);
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
     }
 
-    fn check_function_return_type(&self, function: &Function) -> Result<(), SemanticError> {
+    fn check_function_return_type(&self, function: &Function) -> Result<(), Vec<SemanticError>> {
+        let mut errors: Vec<SemanticError> = Vec::new();
         if function.id == "main" && function.return_type != Type::Int {
-            return Err(SemanticError::MainFunctionInvalidReturnType(
+            errors.push(SemanticError::MainFunctionInvalidReturnType(
                 function.return_type.clone(),
             ));
         }
         for stmt in &function.body {
             if let Stmt::Return(expr) = stmt {
-                let actual_type = self.infer_expr_type(expr)?;
-                if actual_type != function.return_type {
-                    return Err(SemanticError::FunctionReturnTypeMismatch(
-                        function.id.clone(),
-                    ));
+                match self.infer_expr_type(expr) {
+                    Ok(actual_type) => {
+                        if actual_type != function.return_type {
+                            errors.push(SemanticError::FunctionReturnTypeMismatch(
+                                function.id.clone(),
+                            ));
+                        }
+                    }
+                    Err(err) => {
+                        errors.push(err);
+                    }
                 }
             }
         }
-        Ok(())
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
     }
 
     fn infer_expr_type(&self, expr: &Expr) -> Result<Type, SemanticError> {
@@ -148,8 +174,8 @@ impl Display for SemanticError {
             Self::MainFunctionInvalidReturnType(ty) => {
                 write!(
                     f,
-                    "Invalid return type in function 'main'. Expected 'int' found {:#?}.",
-                    ty
+                    "Invalid return type in function 'main'. Expected '{:#?}' found '{:#?}'.",
+                    Type::Int, ty
                 )
             }
             Self::InvalidBinaryOperands(op, lhs, rhs) => {

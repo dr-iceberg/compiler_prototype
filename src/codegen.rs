@@ -73,6 +73,9 @@ impl<'ctx> CodeGen<'ctx> {
                     .i32_type()
                     .const_int(*value as u64, true)
                     .into(),
+                Literal::Float(value) => {
+                    self.context.f32_type().const_float(*value).into()
+                }
                 _ => {
                     todo!()
                 }
