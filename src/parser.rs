@@ -2,7 +2,10 @@ use std::{error::Error, fmt::Display, str::FromStr};
 
 use crate::{
     file::SourceFile,
-    grammar::{BinOp, Decl, Expr, Function, Literal, Parameter, Program, Stmt, Type, UnaryOp},
+    grammar::{
+        BinOp, Decl, Expr, ExprId, ExprKind, Function, Literal, Parameter, Program, Stmt, Type,
+        UnaryOp,
+    },
     tokenize::{Token, TokenType},
 };
 
@@ -11,6 +14,7 @@ pub struct Parser<'a> {
     pos: usize,
     errors: Vec<ParserError<'a>>,
     source: &'a SourceFile,
+    expr_id: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -20,8 +24,20 @@ impl<'a> Parser<'a> {
             pos: 0,
             errors: Vec::new(),
             source,
+            expr_id: 0,
         }
     }
+
+    fn next_expr_id(&mut self) -> ExprId {
+        let id = ExprId::new(self.expr_id);
+        self.expr_id += 1;
+        id
+    }
+
+    fn make_expr(&mut self, kind: ExprKind) -> Expr {
+        Expr::new(self.next_expr_id(), kind)
+    }
+
     #[must_use]
     fn current(&self) -> Option<&Token> {
         self.tokens.get(self.pos)
@@ -246,11 +262,13 @@ impl<'a> Parser<'a> {
             };
             let right = self.parse_comparison()?;
 
-            expr = Expr::Binary {
+            let kind = ExprKind::Binary {
                 left: Box::new(expr),
                 op,
                 right: Box::new(right),
-            }
+            };
+
+            expr = self.make_expr(kind);
         }
 
         Some(expr)
@@ -274,11 +292,13 @@ impl<'a> Parser<'a> {
             };
             let right = self.parse_term()?;
 
-            expr = Expr::Binary {
+            let kind = ExprKind::Binary {
                 left: Box::new(expr),
                 op,
                 right: Box::new(right),
-            }
+            };
+
+            expr = self.make_expr(kind);
         }
 
         Some(expr)
@@ -297,12 +317,13 @@ impl<'a> Parser<'a> {
                 break;
             };
             let right = self.parse_factor()?;
-
-            expr = Expr::Binary {
+            let kind = ExprKind::Binary {
                 left: Box::new(expr),
                 op,
                 right: Box::new(right),
-            }
+            };
+
+            expr = self.make_expr(kind);
         }
 
         Some(expr)
@@ -321,12 +342,13 @@ impl<'a> Parser<'a> {
                 break;
             };
             let right = self.parse_unary()?;
-
-            expr = Expr::Binary {
+            let kind = ExprKind::Binary {
                 left: Box::new(expr),
                 op,
                 right: Box::new(right),
-            }
+            };
+
+            expr = self.make_expr(kind);
         }
 
         Some(expr)
@@ -335,16 +357,18 @@ impl<'a> Parser<'a> {
     #[must_use]
     fn parse_unary(&mut self) -> Option<Expr> {
         if self.match_token(TokenType::Minus) {
-            return Some(Expr::Unary {
+            let kind = ExprKind::Unary {
                 op: UnaryOp::Negate,
                 expr: Box::new(self.parse_unary()?),
-            });
+            };
+            return Some(self.make_expr(kind));
         }
         if self.match_token(TokenType::Bang) {
-            return Some(Expr::Unary {
+            let kind = ExprKind::Unary {
                 op: UnaryOp::Not,
                 expr: Box::new(self.parse_unary()?),
-            });
+            };
+            return Some(self.make_expr(kind));
         }
 
         self.parse_primary()
@@ -355,27 +379,28 @@ impl<'a> Parser<'a> {
         match self.current()?.ty {
             TokenType::Int => {
                 let token = self.expect(TokenType::Int)?;
-                Some(Expr::Literal(Literal::Interger(
-                    self.get_token_value(&token)?,
-                )))
+                let val = self.get_token_value(&token)?;
+                Some(self.make_expr(ExprKind::Literal(Literal::Interger(val))))
             }
             TokenType::Float => {
                 let token = self.expect(TokenType::Float)?;
-                Some(Expr::Literal(Literal::Float(self.get_token_value(&token)?)))
+                let val = self.get_token_value(&token)?;
+                Some(self.make_expr(ExprKind::Literal(Literal::Float(val))))
             }
             TokenType::True => {
                 let token = self.expect(TokenType::True)?;
-                Some(Expr::Literal(Literal::Bool(self.get_token_value(&token)?)))
+                let val = self.get_token_value(&token)?;
+                Some(self.make_expr(ExprKind::Literal(Literal::Bool(val))))
             }
             TokenType::False => {
                 let token = self.expect(TokenType::False)?;
-                Some(Expr::Literal(Literal::Bool(self.get_token_value(&token)?)))
+                let val = self.get_token_value(&token)?;
+                Some(self.make_expr(ExprKind::Literal(Literal::Bool(val))))
             }
             TokenType::Str => {
                 let token = self.expect(TokenType::Str)?;
-                Some(Expr::Literal(Literal::String(
-                    self.get_token_value(&token)?,
-                )))
+                let val = self.get_token_value(&token)?;
+                Some(self.make_expr(ExprKind::Literal(Literal::String(val))))
             }
             TokenType::LPar => {
                 self.expect(TokenType::LPar)?;

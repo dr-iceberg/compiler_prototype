@@ -1,5 +1,38 @@
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ExprId(usize);
+
+impl ExprId {
+    pub fn new(idx: usize) -> Self {
+        Self(idx)
+    }
+
+    pub fn index(&self) -> usize {
+        self.0
+    }
+}
+
 #[derive(Debug, Clone)]
-pub enum Expr {
+pub struct Expr {
+    id: ExprId,
+    kind: ExprKind,
+}
+
+impl Expr {
+    pub(crate) fn new(id: ExprId, kind: ExprKind) -> Self {
+        Self { id, kind }
+    }
+
+    pub fn id(&self) -> ExprId {
+        self.id
+    }
+
+    pub fn kind(&self) -> &ExprKind {
+        &self.kind
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ExprKind {
     Literal(Literal),
     Identifier(String),
     Unary {
@@ -66,7 +99,7 @@ pub struct Function {
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Return(Expr),
-    Assign { id: String, expr: Expr },
+    Assign { id: String, expr: ExprKind },
 }
 
 #[derive(Debug)]
@@ -93,4 +126,5 @@ pub enum Type {
     Bool,
     String,
     Void,
+    Unknown,
 }

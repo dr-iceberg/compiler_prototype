@@ -29,14 +29,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Ok(program) => {
                     // println!("{:#?}", program);
                     // /*
-                    let analyzer = SemanticAnalyzer::default();
+                    let mut analyzer = SemanticAnalyzer::default();
                     match analyzer.check_program(&program) {
-                        Ok(_) => {
-                            /*
+                        Ok(semantic_info) => {
+                            // /*
                             let ctx = Context::create();
-                            let mut code_generator = CodeGen::new(&ctx);
+                            let mut code_generator = CodeGen::new(&ctx, &semantic_info);
                             code_generator.compile_program(&program)?;
-                            */
+                            // */
                         }
                         Err(errors) => {
                             for err in errors {
