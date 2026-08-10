@@ -1,18 +1,29 @@
 use crate::grammar::{Expr, ExprId};
-use std::{error::Error, fmt::Display};
+use std::{collections::HashMap, error::Error, fmt::Display};
 
 use crate::grammar::{BinOp, Decl, ExprKind, Function, Literal, Program, Stmt, Type, UnaryOp};
 
 #[derive(Clone, Default)]
 pub struct SemanticInfo {
     expr_types: Vec<Type>,
+    symbol_type: HashMap<String, Type>,
 }
 impl SemanticInfo {
     pub fn new() -> Self {
         Self {
             expr_types: Vec::new(),
+            symbol_type: HashMap::new(),
         }
     }
+
+    pub fn set_symbol_type(&mut self, id: String, ty: Type) {
+        self.symbol_type.insert(id, ty);
+    }
+
+    pub fn get_symbol_type(&self, id: &String) -> Option<&Type> {
+        self.symbol_type.get(id)
+    }
+
     pub fn set_expr_type(&mut self, id: ExprId, ty: &Type) {
         let index = id.index();
 
@@ -29,15 +40,12 @@ impl SemanticInfo {
 }
 
 pub struct SemanticAnalyzer {
-    #[allow(unused)]
-    id_table: Vec<String>,
     semantic_info: SemanticInfo,
 }
 
 impl SemanticAnalyzer {
     pub fn new() -> Self {
         Self {
-            id_table: Vec::new(),
             semantic_info: SemanticInfo::new(),
         }
     }
@@ -62,8 +70,8 @@ impl SemanticAnalyzer {
 
     fn check_function(&mut self, function: &Function) -> Result<(), Vec<SemanticError>> {
         let mut errors: Vec<SemanticError> = Vec::new();
-        if let Err(err) = self.check_function_return_type(function) {
-            errors.extend(err);
+        if let Err(errs) = self.check_function_statements(function) {
+            errors.extend(errs);
         }
 
         if errors.is_empty() {
@@ -73,37 +81,61 @@ impl SemanticAnalyzer {
         }
     }
 
-    fn check_function_return_type(
-        &mut self,
-        function: &Function,
-    ) -> Result<(), Vec<SemanticError>> {
+    fn check_function_statements(&mut self, function: &Function) -> Result<(), Vec<SemanticError>> {
         let mut errors: Vec<SemanticError> = Vec::new();
-        if function.id == "main" && function.return_type != Type::Int {
-            errors.push(SemanticError::MainFunctionInvalidReturnType(
-                function.return_type.clone(),
-            ));
+        if let Err(err) = self.check_function_return_type(function) {
+            errors.push(err);
         }
         for stmt in &function.body {
-            if let Stmt::Return(expr) = stmt {
-                match self.infer_expr_type(expr) {
-                    Ok(actual_type) => {
-                        if actual_type != function.return_type {
-                            errors.push(SemanticError::FunctionReturnTypeMismatch(
-                                function.id.clone(),
-                            ));
-                        }
+            match stmt {
+                Stmt::Return(expr) => {
+                    if let Err(err) = self.check_function_return_stmt(function, expr) {
+                        errors.push(err);
                     }
-                    Err(err) => {
+                }
+                Stmt::LetAssign { id, expr } => {
+                    if let Err(err) = self.check_let_assign_stmt(id, expr) {
                         errors.push(err);
                     }
                 }
             }
         }
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(errors)
+        Ok(())
+    }
+
+    fn check_let_assign_stmt(&mut self, id: &str, expr: &Expr) -> Result<(), SemanticError> {
+        let ty = self.infer_expr_type(expr)?;
+        self.semantic_info.set_symbol_type(id.to_owned(), ty);
+        Ok(())
+    }
+
+    fn check_function_return_type(&mut self, function: &Function) -> Result<(), SemanticError> {
+        if function.id == "main" && function.return_type != Type::Int {
+            return Err(SemanticError::MainFunctionInvalidReturnType(
+                function.return_type.clone(),
+            ));
         }
+        Ok(())
+    }
+
+    fn check_function_return_stmt(
+        &mut self,
+        function: &Function,
+        expr: &Expr,
+    ) -> Result<(), SemanticError> {
+        match self.infer_expr_type(expr) {
+            Ok(actual_type) => {
+                if actual_type != function.return_type {
+                    return Err(SemanticError::FunctionReturnTypeMismatch(
+                        function.id.clone(),
+                    ));
+                }
+            }
+            Err(err) => {
+                return Err(err);
+            }
+        }
+        Ok(())
     }
 
     fn set_expr_type(&mut self, id: ExprId, ty: &Type) {
@@ -177,8 +209,15 @@ impl SemanticAnalyzer {
                     },
                 }
             }
-            ExprKind::Identifier(_id) => {
-                todo!("Add identifier type inference")
+            ExprKind::Identifier(id) => {
+                if let Some(ty) = self.semantic_info.get_symbol_type(id) {
+                    ty.clone()
+                } else {
+                    return Err(SemanticError::UnknownVariableInExpr(
+                        id.clone(),
+                        kind.clone(),
+                    ));
+                }
             }
         };
         self.set_expr_type(id, &ty);
@@ -214,6 +253,7 @@ pub enum SemanticError {
     InvalidBinaryOperands(BinOp, Type, Type),
     TypeMismatchInExpr(Type, Type, ExprKind),
     InvalidUnaryOperand(UnaryOp, Type),
+    UnknownVariableInExpr(String, ExprKind),
 }
 
 impl Display for SemanticError {
@@ -249,6 +289,13 @@ impl Display for SemanticError {
                     f,
                     "Invalid unary operand '{:#?}' in unary operation '{:#?}'",
                     ty, op
+                )
+            }
+            Self::UnknownVariableInExpr(id, expr) => {
+                write!(
+                    f,
+                    "Unknown variable '{:#?}' in expression '{:#?}'",
+                    id, expr
                 )
             }
         }

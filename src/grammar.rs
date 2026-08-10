@@ -99,7 +99,7 @@ pub struct Function {
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Return(Expr),
-    Assign { id: String, expr: ExprKind },
+    LetAssign { id: String, expr: Expr },
 }
 
 #[derive(Debug)]

@@ -1,6 +1,11 @@
-use std::error::Error;
+use std::{collections::HashMap, error::Error};
 
-use inkwell::{builder::Builder, context::Context, module::Module, values::BasicValueEnum};
+use inkwell::{
+    builder::{Builder, BuilderError},
+    context::Context,
+    module::Module,
+    values::{BasicValueEnum, PointerValue},
+};
 
 use crate::{
     analyzer::SemanticInfo,
@@ -14,6 +19,7 @@ pub struct CodeGen<'ctx> {
     builder: Builder<'ctx>,
     module: Module<'ctx>,
     semantic_info: &'ctx SemanticInfo,
+    variables: HashMap<String, PointerValue<'ctx>>,
 }
 
 impl<'ctx> CodeGen<'ctx> {
@@ -23,6 +29,7 @@ impl<'ctx> CodeGen<'ctx> {
             builder: ctx.create_builder(),
             module: ctx.create_module("main"),
             semantic_info,
+            variables: HashMap::new(),
         }
     }
 
@@ -30,7 +37,7 @@ impl<'ctx> CodeGen<'ctx> {
         for decl in &program.declarations {
             match decl {
                 Decl::Function(function) => {
-                    self.compile_function(function);
+                    self.compile_function(function)?;
                 }
             }
         }
@@ -39,7 +46,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    fn compile_function(&mut self, function: &Function) {
+    fn compile_function(&mut self, function: &Function) -> Result<(), BuilderError> {
         let return_type = match function.return_type {
             Type::Int => self.context.i32_type(),
             _ => {
@@ -56,20 +63,26 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.position_at_end(entry);
 
         for stmt in &function.body {
-            self.compile_statement(stmt);
+            self.compile_statement(stmt)?;
         }
+        Ok(())
     }
 
-    fn compile_statement(&mut self, stmt: &Stmt) {
+    fn compile_statement(&mut self, stmt: &Stmt) -> Result<(), BuilderError> {
         match stmt {
             Stmt::Return(expr) => {
                 let value = self.compile_expression(expr);
                 self.builder.build_return(Some(&value)).unwrap();
             }
-            _ => {
-                todo!()
+            Stmt::LetAssign { id, expr } => {
+                let value = self.compile_expression(expr);
+                let ptr = self.builder.build_alloca(value.get_type(), id)?;
+                self.builder.build_store(ptr, value)?;
+
+                self.variables.insert(id.clone(), ptr);
             }
         }
+        Ok(())
     }
 
     fn get_expr_type(&self, id: &ExprId) -> &Type {
@@ -184,8 +197,22 @@ impl<'ctx> CodeGen<'ctx> {
                     Type::String | Type::Void | Type::Unknown => unimplemented!(),
                 }
             }
-            _ => {
-                todo!()
+            ExprKind::Identifier(id) => {
+                let ptr = self.variables.get(id).unwrap();
+                let ty = self.semantic_info.get_symbol_type(id).unwrap();
+                match ty {
+                    Type::Int => self
+                        .builder
+                        .build_load(self.context.i32_type(), *ptr, id)
+                        .unwrap(),
+                    Type::Float => self
+                        .builder
+                        .build_load(self.context.f32_type(), *ptr, id)
+                        .unwrap(),
+                    _ => {
+                        todo!()
+                    }
+                }
             }
         }
     }

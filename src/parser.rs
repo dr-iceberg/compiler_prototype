@@ -225,6 +225,7 @@ impl<'a> Parser<'a> {
     fn parse_stmt(&mut self) -> Option<Stmt> {
         match self.current()?.ty {
             TokenType::Return => self.parse_return_stmt(),
+            TokenType::Let => self.parse_let_stmt(),
             _ => {
                 self.errors.push(ParserError::UnexpectedToken {
                     token: *self.current()?,
@@ -233,6 +234,18 @@ impl<'a> Parser<'a> {
                 None
             }
         }
+    }
+
+    fn parse_let_stmt(&mut self) -> Option<Stmt> {
+        self.expect(TokenType::Let)?;
+        let id = self
+            .expect(TokenType::Id)?
+            .lexeme(self.source.source())
+            .to_string();
+        self.expect(TokenType::Equal)?;
+        let expr = self.parse_expr()?;
+        self.expect(TokenType::Semicolon)?;
+        Some(Stmt::LetAssign { id, expr })
     }
 
     #[must_use]
@@ -401,6 +414,11 @@ impl<'a> Parser<'a> {
                 let token = self.expect(TokenType::Str)?;
                 let val = self.get_token_value(&token)?;
                 Some(self.make_expr(ExprKind::Literal(Literal::String(val))))
+            }
+            TokenType::Id => {
+                let token = self.expect(TokenType::Id)?;
+                let val = self.get_token_value(&token)?;
+                Some(self.make_expr(ExprKind::Identifier(val)))
             }
             TokenType::LPar => {
                 self.expect(TokenType::LPar)?;
