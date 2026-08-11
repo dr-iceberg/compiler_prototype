@@ -4,7 +4,7 @@ use inkwell::{
     builder::{Builder, BuilderError},
     context::Context,
     module::Module,
-    values::{BasicValueEnum, PointerValue},
+    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, PointerValue},
 };
 
 use crate::{
@@ -20,6 +20,7 @@ pub struct CodeGen<'ctx> {
     module: Module<'ctx>,
     semantic_info: &'ctx SemanticInfo,
     variables: HashMap<String, PointerValue<'ctx>>,
+    functions: HashMap<String, FunctionValue<'ctx>>,
 }
 
 impl<'ctx> CodeGen<'ctx> {
@@ -30,6 +31,7 @@ impl<'ctx> CodeGen<'ctx> {
             module: ctx.create_module("main"),
             semantic_info,
             variables: HashMap::new(),
+            functions: HashMap::new(),
         }
     }
 
@@ -57,6 +59,7 @@ impl<'ctx> CodeGen<'ctx> {
         let function_type = return_type.fn_type(&[], false);
 
         let llvm_function = self.module.add_function(&function.id, function_type, None);
+        self.functions.insert(function.id.clone(), llvm_function);
 
         let entry = self.context.append_basic_block(llvm_function, "entry");
 
@@ -66,6 +69,21 @@ impl<'ctx> CodeGen<'ctx> {
             self.compile_statement(stmt)?;
         }
         Ok(())
+    }
+
+    fn compile_function_call(
+        &self,
+        id: &String,
+        args: &[Expr],
+    ) -> Result<BasicValueEnum<'ctx>, BuilderError> {
+        let function = *self.functions.get(id).unwrap();
+        let args: Vec<BasicMetadataValueEnum> = args
+            .iter()
+            .map(|arg| self.compile_expression(arg).into())
+            .collect();
+        let val = self.builder.build_call(function, &args, id)?;
+
+        Ok(val.try_as_basic_value().basic().unwrap())
     }
 
     fn compile_statement(&mut self, stmt: &Stmt) -> Result<(), BuilderError> {
@@ -81,6 +99,7 @@ impl<'ctx> CodeGen<'ctx> {
 
                 self.variables.insert(id.clone(), ptr);
             }
+            Stmt::Expr(_expr) => todo!("Implement standalone function calls"),
         }
         Ok(())
     }
@@ -214,6 +233,7 @@ impl<'ctx> CodeGen<'ctx> {
                     }
                 }
             }
+            ExprKind::Call { id, args } => self.compile_function_call(id, args).unwrap(),
         }
     }
 }

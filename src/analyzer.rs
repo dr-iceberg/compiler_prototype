@@ -70,6 +70,8 @@ impl SemanticAnalyzer {
 
     fn check_function(&mut self, function: &Function) -> Result<(), Vec<SemanticError>> {
         let mut errors: Vec<SemanticError> = Vec::new();
+        self.semantic_info
+            .set_symbol_type(function.id.clone(), function.return_type.clone());
         if let Err(errs) = self.check_function_statements(function) {
             errors.extend(errs);
         }
@@ -98,6 +100,7 @@ impl SemanticAnalyzer {
                         errors.push(err);
                     }
                 }
+                Stmt::Expr(_) => {}
             }
         }
         Ok(())
@@ -218,6 +221,10 @@ impl SemanticAnalyzer {
                         kind.clone(),
                     ));
                 }
+            }
+            ExprKind::Call { id, args: _ } => {
+                //todo!("Check if provided argument types match the function argument types")
+                self.semantic_info.get_symbol_type(id).unwrap().clone()
             }
         };
         self.set_expr_type(id, &ty);

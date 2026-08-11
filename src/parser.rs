@@ -417,8 +417,26 @@ impl<'a> Parser<'a> {
             }
             TokenType::Id => {
                 let token = self.expect(TokenType::Id)?;
-                let val = self.get_token_value(&token)?;
-                Some(self.make_expr(ExprKind::Identifier(val)))
+                let id = self.get_token_value(&token)?;
+                if self.current()?.ty == TokenType::LPar {
+                    let mut args: Vec<Expr> = Vec::new();
+                    // function call
+                    self.expect(TokenType::LPar)?;
+
+                    while self.current()?.ty != TokenType::RPar {
+                        args.push(self.parse_expr()?);
+
+                        if !self.match_token(TokenType::Colon) {
+                            break;
+                        }
+                        self.advance();
+                    }
+
+                    self.expect(TokenType::RPar)?;
+                    Some(self.make_expr(ExprKind::Call { id, args }))
+                } else {
+                    Some(self.make_expr(ExprKind::Identifier(id)))
+                }
             }
             TokenType::LPar => {
                 self.expect(TokenType::LPar)?;

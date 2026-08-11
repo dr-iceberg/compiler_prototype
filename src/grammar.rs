@@ -44,6 +44,10 @@ pub enum ExprKind {
         op: BinOp,
         right: Box<Expr>,
     },
+    Call {
+        id: String,
+        args: Vec<Expr>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -100,9 +104,10 @@ pub struct Function {
 pub enum Stmt {
     Return(Expr),
     LetAssign { id: String, expr: Expr },
+    Expr(Expr),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Parameter {
     pub name: String,
     pub ty: Type,
