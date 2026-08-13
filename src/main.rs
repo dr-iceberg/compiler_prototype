@@ -1,23 +1,20 @@
+use clap::Parser;
 #[allow(unused)]
 use compiler_prototype::analyzer::SemanticAnalyzer;
+use compiler_prototype::cli::CompilerArgs;
 #[allow(unused)]
 use compiler_prototype::codegen::CodeGen;
 use compiler_prototype::file::SourceFile;
 use compiler_prototype::parser;
-use compiler_prototype::tokenize::{Lexer, Token};
+use compiler_prototype::tokenize::Lexer;
 #[allow(unused)]
 use inkwell::context::Context;
 use std::error::Error;
 
-#[allow(unused)]
-fn print_tokens(tokens: &Vec<Token>, source: &str) {
-    for token in tokens {
-        println!("token '{}' at {}", token.lexeme(source), token.span.start())
-    }
-}
-
 fn main() -> Result<(), Box<dyn Error>> {
-    let file = SourceFile::new("src.txt")?;
+    let args = CompilerArgs::parse();
+    // for now only process one file
+    let file = SourceFile::new(args.inputs.first().unwrap())?;
     let mut lexer = Lexer::new(&file);
 
     match lexer.tokenize() {
