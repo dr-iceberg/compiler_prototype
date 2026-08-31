@@ -1,11 +1,9 @@
-fn a() -> int {
-    let b = 15;
-    let c = 5;
+fn a(b: int, c: int) -> int {
     return b / c;
 }
 
 fn main() -> int {
     let x = 30;
     let y = 5;
-    return x / y + a();
+    return x / y + a(30, 6);
 }

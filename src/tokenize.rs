@@ -1,6 +1,7 @@
 use std::{error::Error, fmt::Display, iter::Peekable, str::CharIndices};
 
 use crate::{
+    diagnostics::Span,
     file::SourceFile,
     tokenize::LexerError::{UnexepectedChar, UnexepectedEOF},
 };
@@ -100,34 +101,6 @@ pub enum TokenType {
     EOF,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Span {
-    start: u32,
-    end: u32,
-}
-
-impl Span {
-    pub fn new_single_char(pos: usize) -> Self {
-        Self::new(pos, pos)
-    }
-
-    pub fn new(start: usize, end: usize) -> Self {
-        assert!(start <= end);
-        Self {
-            start: start as u32,
-            end: end as u32,
-        }
-    }
-
-    pub fn start(&self) -> u32 {
-        self.start
-    }
-
-    pub fn end(&self) -> u32 {
-        self.end
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct Token {
     pub ty: TokenType,
@@ -219,6 +192,10 @@ impl<'a> Lexer<'a> {
                 tokens.push(Token::new(TokenType::Semicolon, Span::new_single_char(pos)));
             } else if ch == ':' {
                 tokens.push(Token::new(TokenType::Colon, Span::new_single_char(pos)));
+            } else if ch == ',' {
+                tokens.push(Token::new(TokenType::Comma, Span::new_single_char(pos)));
+            } else if ch == '.' {
+                tokens.push(Token::new(TokenType::Dot, Span::new_single_char(pos)));
             } else if ch == '!' {
                 if let Some(&(pos2, ch2)) = chars.peek() {
                     if ch2 == '=' {

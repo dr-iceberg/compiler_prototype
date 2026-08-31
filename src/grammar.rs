@@ -15,6 +15,7 @@ impl ExprId {
 pub struct Expr {
     id: ExprId,
     kind: ExprKind,
+    // todo: Add a span here
 }
 
 impl Expr {
@@ -34,7 +35,7 @@ impl Expr {
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     Literal(Literal),
-    Identifier(String),
+    Identifier(VariableId),
     Unary {
         op: UnaryOp,
         expr: Box<Expr>,
@@ -45,7 +46,7 @@ pub enum ExprKind {
         right: Box<Expr>,
     },
     Call {
-        id: String,
+        id: FunctionId,
         args: Vec<Expr>,
     },
 }
@@ -92,9 +93,64 @@ pub enum BinOp {
     GreaterEqual,
 }
 
-#[derive(Debug)]
+pub trait SymbolId {
+    fn get(&self) -> &str;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct VariableId(String);
+
+impl VariableId {
+    pub fn new(id: &str) -> Self {
+        Self(id.to_string())
+    }
+}
+
+impl From<ParameterId> for VariableId {
+    fn from(value: ParameterId) -> Self {
+        Self(value.0)
+    }
+}
+
+impl SymbolId for VariableId {
+    fn get(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FunctionId(String);
+
+impl FunctionId {
+    pub fn new(id: &str) -> Self {
+        Self(id.to_string())
+    }
+}
+
+impl SymbolId for FunctionId {
+    fn get(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ParameterId(String);
+
+impl ParameterId {
+    pub fn new(id: &str) -> Self {
+        Self(id.to_string())
+    }
+}
+
+impl SymbolId for ParameterId {
+    fn get(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Function {
-    pub id: String,
+    pub id: FunctionId,
     pub parameters: Vec<Parameter>,
     pub body: Vec<Stmt>,
     pub return_type: Type,
@@ -103,13 +159,13 @@ pub struct Function {
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Return(Expr),
-    LetAssign { id: String, expr: Expr },
+    LetAssign { id: VariableId, expr: Expr },
     Expr(Expr),
 }
 
 #[derive(Debug, Clone)]
 pub struct Parameter {
-    pub name: String,
+    pub id: ParameterId,
     pub ty: Type,
 }
 

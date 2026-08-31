@@ -3,6 +3,7 @@
 pub mod analyzer;
 pub mod cli;
 pub mod codegen;
+pub mod diagnostics;
 pub mod file;
 pub mod grammar;
 pub mod parser;

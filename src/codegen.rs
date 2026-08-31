@@ -10,7 +10,8 @@ use inkwell::{
 use crate::{
     analyzer::SemanticInfo,
     grammar::{
-        BinOp, Decl, Expr, ExprId, ExprKind, Function, Literal, Program, Stmt, Type, UnaryOp,
+        BinOp, Decl, Expr, ExprId, ExprKind, Function, FunctionId, Literal, Program, Stmt,
+        SymbolId, Type, UnaryOp, VariableId,
     },
 };
 
@@ -19,8 +20,8 @@ pub struct CodeGen<'ctx> {
     builder: Builder<'ctx>,
     module: Module<'ctx>,
     semantic_info: &'ctx SemanticInfo,
-    variables: HashMap<String, PointerValue<'ctx>>,
-    functions: HashMap<String, FunctionValue<'ctx>>,
+    variables: HashMap<VariableId, PointerValue<'ctx>>,
+    functions: HashMap<FunctionId, FunctionValue<'ctx>>,
 }
 
 impl<'ctx> CodeGen<'ctx> {
@@ -58,7 +59,9 @@ impl<'ctx> CodeGen<'ctx> {
 
         let function_type = return_type.fn_type(&[], false);
 
-        let llvm_function = self.module.add_function(&function.id, function_type, None);
+        let llvm_function = self
+            .module
+            .add_function(function.id.get(), function_type, None);
         self.functions.insert(function.id.clone(), llvm_function);
 
         let entry = self.context.append_basic_block(llvm_function, "entry");
@@ -73,7 +76,7 @@ impl<'ctx> CodeGen<'ctx> {
 
     fn compile_function_call(
         &self,
-        id: &String,
+        id: &FunctionId,
         args: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>, BuilderError> {
         let function = *self.functions.get(id).unwrap();
@@ -81,7 +84,7 @@ impl<'ctx> CodeGen<'ctx> {
             .iter()
             .map(|arg| self.compile_expression(arg).into())
             .collect();
-        let val = self.builder.build_call(function, &args, id)?;
+        let val = self.builder.build_call(function, &args, id.get())?;
 
         Ok(val.try_as_basic_value().basic().unwrap())
     }
@@ -94,7 +97,7 @@ impl<'ctx> CodeGen<'ctx> {
             }
             Stmt::LetAssign { id, expr } => {
                 let value = self.compile_expression(expr);
-                let ptr = self.builder.build_alloca(value.get_type(), id)?;
+                let ptr = self.builder.build_alloca(value.get_type(), id.get())?;
                 self.builder.build_store(ptr, value)?;
 
                 self.variables.insert(id.clone(), ptr);
@@ -218,15 +221,15 @@ impl<'ctx> CodeGen<'ctx> {
             }
             ExprKind::Identifier(id) => {
                 let ptr = self.variables.get(id).unwrap();
-                let ty = self.semantic_info.get_symbol_type(id).unwrap();
+                let ty = self.semantic_info.get_variable_type(id).unwrap();
                 match ty {
                     Type::Int => self
                         .builder
-                        .build_load(self.context.i32_type(), *ptr, id)
+                        .build_load(self.context.i32_type(), *ptr, id.get())
                         .unwrap(),
                     Type::Float => self
                         .builder
-                        .build_load(self.context.f32_type(), *ptr, id)
+                        .build_load(self.context.f32_type(), *ptr, id.get())
                         .unwrap(),
                     _ => {
                         todo!()

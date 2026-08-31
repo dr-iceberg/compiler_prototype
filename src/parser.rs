@@ -3,8 +3,8 @@ use std::{error::Error, fmt::Display, str::FromStr};
 use crate::{
     file::SourceFile,
     grammar::{
-        BinOp, Decl, Expr, ExprId, ExprKind, Function, Literal, Parameter, Program, Stmt, Type,
-        UnaryOp,
+        BinOp, Decl, Expr, ExprId, ExprKind, Function, FunctionId, Literal, Parameter, ParameterId,
+        Program, Stmt, Type, UnaryOp, VariableId,
     },
     tokenize::{Token, TokenType},
 };
@@ -49,6 +49,8 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Returns true and advances the iterator if current token matches
+    /// the specified type. Otherwise returns false
     fn match_token(&mut self, ty: TokenType) -> bool {
         if self.check(ty) {
             self.advance();
@@ -133,6 +135,7 @@ impl<'a> Parser<'a> {
             .expect(TokenType::Id)?
             .lexeme(self.source.source())
             .to_string();
+        let id = FunctionId::new(&id);
         let parameters = self.parse_params()?;
         let return_type = self.parse_function_return_type()?;
         let body = self.parse_function_body()?;
@@ -149,23 +152,26 @@ impl<'a> Parser<'a> {
     fn parse_params(&mut self) -> Option<Vec<Parameter>> {
         let mut params: Vec<Parameter> = Vec::new();
         self.expect(TokenType::LPar)?;
-        while let Some(token) = self.current() {
-            if token.ty != TokenType::RPar {
-                let name = self
-                    .expect(TokenType::Id)?
-                    .lexeme(self.source.source())
-                    .to_string();
-                self.expect(TokenType::Colon)?;
-                let ty = self.parse_type()?;
-                let param = Parameter { name, ty };
-                params.push(param);
-            } else {
-                self.advance();
-                break;
+        if !self.match_token(TokenType::RPar) {
+            params.push(self.parse_param()?);
+            while self.match_token(TokenType::Comma) {
+                params.push(self.parse_param()?);
             }
+            self.expect(TokenType::RPar)?;
         }
-
         Some(params)
+    }
+
+    #[must_use]
+    fn parse_param(&mut self) -> Option<Parameter> {
+        let id = self
+            .expect(TokenType::Id)?
+            .lexeme(self.source.source())
+            .to_string();
+        self.expect(TokenType::Colon)?;
+        let id = ParameterId::new(&id);
+        let ty = self.parse_type()?;
+        Some(Parameter { id, ty })
     }
 
     #[must_use]
@@ -242,6 +248,7 @@ impl<'a> Parser<'a> {
             .expect(TokenType::Id)?
             .lexeme(self.source.source())
             .to_string();
+        let id = VariableId::new(&id);
         self.expect(TokenType::Equal)?;
         let expr = self.parse_expr()?;
         self.expect(TokenType::Semicolon)?;
@@ -417,24 +424,22 @@ impl<'a> Parser<'a> {
             }
             TokenType::Id => {
                 let token = self.expect(TokenType::Id)?;
-                let id = self.get_token_value(&token)?;
-                if self.current()?.ty == TokenType::LPar {
+                let id: String = self.get_token_value(&token)?;
+                // function call
+                if self.match_token(TokenType::LPar) {
                     let mut args: Vec<Expr> = Vec::new();
-                    // function call
-                    self.expect(TokenType::LPar)?;
 
-                    while self.current()?.ty != TokenType::RPar {
+                    if !self.match_token(TokenType::RPar) {
                         args.push(self.parse_expr()?);
-
-                        if !self.match_token(TokenType::Colon) {
-                            break;
+                        while self.match_token(TokenType::Comma) {
+                            args.push(self.parse_expr()?);
                         }
-                        self.advance();
+                        self.expect(TokenType::RPar)?;
                     }
-
-                    self.expect(TokenType::RPar)?;
+                    let id = FunctionId::new(&id);
                     Some(self.make_expr(ExprKind::Call { id, args }))
                 } else {
+                    let id = VariableId::new(&id);
                     Some(self.make_expr(ExprKind::Identifier(id)))
                 }
             }
