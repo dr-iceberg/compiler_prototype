@@ -30,7 +30,6 @@
         };
 
         llvm = pkgs.llvmPackages_18.llvm;
-        llvmDev = llvm.dev;
       in
       {
         devShells.default = pkgs.mkShell {
@@ -40,9 +39,10 @@
             pkgs.libffi
             pkgs.libxml2
             pkgs.pkg-config
+            pkgs.clang_18
           ];
 
-          LLVM_SYS_181_PREFIX = "${llvmDev}";
+          LLVM_SYS_181_PREFIX = "${llvm.dev}";
         };
       }
     );
