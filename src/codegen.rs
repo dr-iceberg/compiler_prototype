@@ -4,6 +4,7 @@ use inkwell::{
     builder::{Builder, BuilderError},
     context::Context,
     module::Module,
+    types::BasicMetadataTypeEnum,
     values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, PointerValue},
 };
 
@@ -25,14 +26,23 @@ pub struct CodeGen<'ctx> {
 }
 
 impl<'ctx> CodeGen<'ctx> {
-    pub fn new(ctx: &'ctx Context, semantic_info: &'ctx SemanticInfo) -> Self {
+    pub fn new(context: &'ctx Context, semantic_info: &'ctx SemanticInfo) -> Self {
         Self {
-            context: ctx,
-            builder: ctx.create_builder(),
-            module: ctx.create_module("main"),
+            context,
+            builder: context.create_builder(),
+            module: context.create_module("main"),
             semantic_info,
             variables: HashMap::new(),
             functions: HashMap::new(),
+        }
+    }
+
+    fn type_into_type_enum(context: &'ctx Context, ty: &Type) -> BasicMetadataTypeEnum<'ctx> {
+        match ty {
+            Type::Int => BasicMetadataTypeEnum::IntType(context.i32_type()),
+            _ => {
+                todo!()
+            }
         }
     }
 
@@ -57,7 +67,22 @@ impl<'ctx> CodeGen<'ctx> {
             }
         };
 
-        let function_type = return_type.fn_type(&[], false);
+        let function_signature = self
+            .semantic_info
+            .get_function_signature(&function.id)
+            .unwrap();
+
+        let param_types: Vec<BasicMetadataTypeEnum> = function_signature
+            .params()
+            .iter()
+            .map(|ty| CodeGen::<'ctx>::type_into_type_enum(&self.context, &ty))
+            .collect();
+
+        for _param in &function.parameters {
+            todo!("Add params to self.variables in order to fetch them in expressions")
+        }
+
+        let function_type = return_type.fn_type(&param_types, false);
 
         let llvm_function = self
             .module

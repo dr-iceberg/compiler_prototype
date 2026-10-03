@@ -1,6 +1,8 @@
+#[allow(unused)]
 use clap::Parser;
 #[allow(unused)]
 use compiler_prototype::analyzer::SemanticAnalyzer;
+#[allow(unused)]
 use compiler_prototype::cli::CompilerArgs;
 #[allow(unused)]
 use compiler_prototype::codegen::CodeGen;
