@@ -1,3 +1,6 @@
+/// Used for saving expression type
+/// in order to fetch the expression type during codegen
+/// without having to reevaluate the expression
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ExprId(usize);
 
