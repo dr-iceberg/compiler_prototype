@@ -40,6 +40,7 @@
             pkgs.libxml2
             pkgs.pkg-config
             pkgs.clang_18
+            pkgs.mold
           ];
 
           LLVM_SYS_181_PREFIX = "${llvm.dev}";
