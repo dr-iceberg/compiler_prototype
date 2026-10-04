@@ -270,19 +270,14 @@ impl<'ctx> CodeGen<'ctx> {
             ExprKind::Identifier(id) => {
                 let ptr = self.variables.get(id).unwrap();
                 let ty = self.semantic_info.get_variable_type(id).unwrap();
-                match ty {
-                    Type::Int => self
-                        .builder
-                        .build_load(self.context.i32_type(), *ptr, id.get())
-                        .unwrap(),
-                    Type::Float => self
-                        .builder
-                        .build_load(self.context.f32_type(), *ptr, id.get())
-                        .unwrap(),
-                    _ => {
-                        todo!()
-                    }
-                }
+
+                self.builder
+                    .build_load(
+                        CodeGen::<'ctx>::type_into_type_enum(self.context, ty),
+                        *ptr,
+                        id.get(),
+                    )
+                    .unwrap()
             }
             ExprKind::Call { id, args } => self.compile_function_call(id, args).unwrap(),
         }
