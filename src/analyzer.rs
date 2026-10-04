@@ -37,7 +37,7 @@ impl Scope {
     pub fn get_variable(&self, id: &VariableId) -> Option<&VariableInfo> {
         self.variables.get(id)
     }
-    
+
     pub fn add_function_params_to_scope(&mut self, params: &Vec<Parameter>) {
         for param in params {
             let id = param.id.clone().into();
@@ -175,7 +175,6 @@ impl SemanticAnalyzer {
         self.scopes.last_mut().unwrap()
     }
 
-
     fn get_variable(&mut self, id: &VariableId) -> Option<&VariableInfo> {
         for scope in &self.scopes {
             if let Some(info) = scope.get_variable(id) {
@@ -193,7 +192,8 @@ impl SemanticAnalyzer {
     }
 
     fn add_params(&mut self, params: &Vec<Parameter>) {
-        self.get_current_scope().add_function_params_to_scope(params);
+        self.get_current_scope()
+            .add_function_params_to_scope(params);
         self.semantic_info.add_function_params(params);
     }
 

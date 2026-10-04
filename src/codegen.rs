@@ -75,12 +75,8 @@ impl<'ctx> CodeGen<'ctx> {
         let param_types: Vec<BasicMetadataTypeEnum> = function_signature
             .params()
             .iter()
-            .map(|ty| CodeGen::<'ctx>::type_into_type_enum(&self.context, &ty))
+            .map(|ty| CodeGen::<'ctx>::type_into_type_enum(self.context, ty))
             .collect();
-
-        for _param in &function.parameters {
-            todo!("Add params to self.variables in order to fetch them in expressions")
-        }
 
         let function_type = return_type.fn_type(&param_types, false);
 
@@ -92,6 +88,27 @@ impl<'ctx> CodeGen<'ctx> {
         let entry = self.context.append_basic_block(llvm_function, "entry");
 
         self.builder.position_at_end(entry);
+
+        for (i, param) in function.parameters.iter().enumerate() {
+            let param_value = llvm_function.get_nth_param(i as u32).unwrap();
+            param_value.set_name(param.id.get());
+
+            let mut id: String = param.id.get().to_string();
+            id.push_str(".addr"); // append ".addr" to distinguish between the SSA value
+            // and the allocated register
+
+            let ty = CodeGen::<'ctx>::type_into_type_enum(self.context, &param.ty);
+            let ty = match ty {
+                BasicMetadataTypeEnum::IntType(_) => self.context.i32_type(),
+                _ => {
+                    todo!()
+                }
+            };
+            let ptr = self.builder.build_alloca(ty, &id)?;
+            self.builder.build_store(ptr, param_value)?;
+
+            self.variables.insert(VariableId::new(param.id.get()), ptr);
+        }
 
         for stmt in &function.body {
             self.compile_statement(stmt)?;
