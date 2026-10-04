@@ -41,6 +41,7 @@
             pkgs.pkg-config
             pkgs.clang_18
             pkgs.mold
+            pkgs.bugstalker
           ];
 
           LLVM_SYS_181_PREFIX = "${llvm.dev}";
