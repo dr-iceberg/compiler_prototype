@@ -4,7 +4,7 @@ use inkwell::{
     builder::{Builder, BuilderError},
     context::Context,
     module::Module,
-    types::BasicMetadataTypeEnum,
+    types::{BasicMetadataTypeEnum, BasicTypeEnum},
     values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, PointerValue},
 };
 
@@ -37,9 +37,21 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    fn type_into_type_enum(context: &'ctx Context, ty: &Type) -> BasicMetadataTypeEnum<'ctx> {
+    fn type_into_metadata_type_enum(
+        context: &'ctx Context,
+        ty: &Type,
+    ) -> BasicMetadataTypeEnum<'ctx> {
         match ty {
             Type::Int => BasicMetadataTypeEnum::IntType(context.i32_type()),
+            _ => {
+                todo!()
+            }
+        }
+    }
+
+    fn type_into_type_enum(context: &'ctx Context, ty: &Type) -> BasicTypeEnum<'ctx> {
+        match ty {
+            Type::Int => context.i32_type().into(),
             _ => {
                 todo!()
             }
@@ -75,7 +87,7 @@ impl<'ctx> CodeGen<'ctx> {
         let param_types: Vec<BasicMetadataTypeEnum> = function_signature
             .params()
             .iter()
-            .map(|ty| CodeGen::<'ctx>::type_into_type_enum(self.context, ty))
+            .map(|ty| CodeGen::<'ctx>::type_into_metadata_type_enum(self.context, ty))
             .collect();
 
         let function_type = return_type.fn_type(&param_types, false);
@@ -98,12 +110,6 @@ impl<'ctx> CodeGen<'ctx> {
             // and the allocated register
 
             let ty = CodeGen::<'ctx>::type_into_type_enum(self.context, &param.ty);
-            let ty = match ty {
-                BasicMetadataTypeEnum::IntType(_) => self.context.i32_type(),
-                _ => {
-                    todo!()
-                }
-            };
             let ptr = self.builder.build_alloca(ty, &id)?;
             self.builder.build_store(ptr, param_value)?;
 
