@@ -14,10 +14,8 @@ use inkwell::context::Context;
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // let args = CompilerArgs::parse();
-    // for now only process one file
-    // let file = SourceFile::new(args.inputs.first().unwrap())?;
-    let file = SourceFile::new("src.txt")?;
+    let args = CompilerArgs::parse();
+    let file = SourceFile::new(args.inputs.first().unwrap())?;
     let mut lexer = Lexer::new(&file);
 
     match lexer.tokenize() {
