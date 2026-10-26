@@ -79,10 +79,7 @@ impl<'ctx> CodeGen<'ctx> {
             }
         };
 
-        let function_signature = self
-            .semantic_info
-            .get_function_signature(&function.id)
-            .unwrap();
+        let function_signature = self.semantic_info.get_function_signature(&function.id);
 
         let param_types: Vec<BasicMetadataTypeEnum> = function_signature
             .params()
@@ -102,7 +99,9 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.position_at_end(entry);
 
         for (i, param) in function.parameters.iter().enumerate() {
-            let param_value = llvm_function.get_nth_param(i as u32).unwrap();
+            let param_value = llvm_function
+                .get_nth_param(i as u32)
+                .expect("Could not retrieve the ith function param");
             param_value.set_name(param.id.get());
 
             let mut id: String = param.id.get().to_string();
@@ -127,21 +126,29 @@ impl<'ctx> CodeGen<'ctx> {
         id: &FunctionId,
         args: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>, BuilderError> {
-        let function = *self.functions.get(id).unwrap();
+        let function = *self
+            .functions
+            .get(id)
+            .expect("Could not retrieve a FunctionValue");
         let args: Vec<BasicMetadataValueEnum> = args
             .iter()
             .map(|arg| self.compile_expression(arg).into())
             .collect();
         let val = self.builder.build_call(function, &args, id.get())?;
 
-        Ok(val.try_as_basic_value().basic().unwrap())
+        Ok(val
+            .try_as_basic_value()
+            .basic()
+            .expect("Could not convert CallSiteValue into a BasicValue"))
     }
 
     fn compile_statement(&mut self, stmt: &Stmt) -> Result<(), BuilderError> {
         match stmt {
             Stmt::Return(expr) => {
                 let value = self.compile_expression(expr);
-                self.builder.build_return(Some(&value)).unwrap();
+                self.builder
+                    .build_return(Some(&value))
+                    .expect("Could not build a return statement");
             }
             Stmt::LetAssign { id, expr } => {
                 let value = self.compile_expression(expr);
@@ -186,19 +193,25 @@ impl<'ctx> CodeGen<'ctx> {
                         let lhs = lhs.into_int_value();
                         let rhs = rhs.into_int_value();
                         match *op {
-                            BinOp::Add => {
-                                self.builder.build_int_add(lhs, rhs, "add").unwrap().into()
-                            }
-                            BinOp::Subtract => {
-                                self.builder.build_int_sub(lhs, rhs, "sub").unwrap().into()
-                            }
-                            BinOp::Multiply => {
-                                self.builder.build_int_mul(lhs, rhs, "mul").unwrap().into()
-                            }
+                            BinOp::Add => self
+                                .builder
+                                .build_int_add(lhs, rhs, "add")
+                                .expect("Could not build int add")
+                                .into(),
+                            BinOp::Subtract => self
+                                .builder
+                                .build_int_sub(lhs, rhs, "sub")
+                                .expect("Could not build int sub")
+                                .into(),
+                            BinOp::Multiply => self
+                                .builder
+                                .build_int_mul(lhs, rhs, "mul")
+                                .expect("Could not build int mul")
+                                .into(),
                             BinOp::Divide => self
                                 .builder
                                 .build_int_signed_div(lhs, rhs, "div")
-                                .unwrap()
+                                .expect("Could not build int div")
                                 .into(),
                             BinOp::Equal => todo!(),
                             BinOp::NotEqual => todo!(),
@@ -215,22 +228,22 @@ impl<'ctx> CodeGen<'ctx> {
                             BinOp::Add => self
                                 .builder
                                 .build_float_add(lhs, rhs, "add")
-                                .unwrap()
+                                .expect("Could not build float add")
                                 .into(),
                             BinOp::Subtract => self
                                 .builder
                                 .build_float_sub(lhs, rhs, "sub")
-                                .unwrap()
+                                .expect("Could not build float sub")
                                 .into(),
                             BinOp::Multiply => self
                                 .builder
                                 .build_float_mul(lhs, rhs, "mul")
-                                .unwrap()
+                                .expect("Could not build float mul")
                                 .into(),
                             BinOp::Divide => self
                                 .builder
                                 .build_float_div(lhs, rhs, "div")
-                                .unwrap()
+                                .expect("Could not build float div")
                                 .into(),
                             _ => {
                                 todo!()
@@ -248,18 +261,22 @@ impl<'ctx> CodeGen<'ctx> {
                     Type::Int => {
                         let value = value.into_int_value();
                         match *op {
-                            UnaryOp::Negate => {
-                                self.builder.build_int_neg(value, "neg").unwrap().into()
-                            }
+                            UnaryOp::Negate => self
+                                .builder
+                                .build_int_neg(value, "neg")
+                                .expect("Could not build an int negative value")
+                                .into(),
                             UnaryOp::Not => unimplemented!(),
                         }
                     }
                     Type::Float => {
                         let value = value.into_float_value();
                         match *op {
-                            UnaryOp::Negate => {
-                                self.builder.build_float_neg(value, "neg").unwrap().into()
-                            }
+                            UnaryOp::Negate => self
+                                .builder
+                                .build_float_neg(value, "neg")
+                                .expect("Could not build float negative value")
+                                .into(),
                             UnaryOp::Not => unimplemented!(),
                         }
                     }
@@ -268,8 +285,14 @@ impl<'ctx> CodeGen<'ctx> {
                 }
             }
             ExprKind::Identifier(id) => {
-                let ptr = self.variables.get(id).unwrap();
-                let ty = self.semantic_info.get_variable_type(id).unwrap();
+                let ptr = self
+                    .variables
+                    .get(id)
+                    .expect("Could not find the variable with specified id");
+                let ty = self
+                    .semantic_info
+                    .get_variable_type(id)
+                    .expect("Could not get the type of the variable with specified id");
 
                 self.builder
                     .build_load(
@@ -277,9 +300,11 @@ impl<'ctx> CodeGen<'ctx> {
                         *ptr,
                         id.get(),
                     )
-                    .unwrap()
+                    .expect("Could not build load instruction")
             }
-            ExprKind::Call { id, args } => self.compile_function_call(id, args).unwrap(),
+            ExprKind::Call { id, args } => self
+                .compile_function_call(id, args)
+                .expect("Could not compile function call"),
         }
     }
 }

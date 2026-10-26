@@ -107,8 +107,10 @@ impl SemanticInfo {
         &self.expr_types[id.index()]
     }
 
-    pub fn get_function_signature(&self, id: &FunctionId) -> Option<&FunctionSignature> {
-        self.function_signatures.get(id)
+    pub fn get_function_signature(&self, id: &FunctionId) -> &FunctionSignature {
+        self.function_signatures
+            .get(id)
+            .expect("Could not retrieve function signature")
     }
 
     pub fn add_function_signature(
@@ -172,7 +174,7 @@ impl SemanticAnalyzer {
     }
 
     fn get_current_scope(&mut self) -> &mut Scope {
-        self.scopes.last_mut().unwrap()
+        self.scopes.last_mut().expect("Could not retrieve a scope")
     }
 
     fn get_variable(&mut self, id: &VariableId) -> Option<&VariableInfo> {
@@ -374,7 +376,7 @@ impl SemanticAnalyzer {
                 for arg in args {
                     arg_types.push(self.infer_expr_type(arg)?);
                 }
-                let function_sig = self.semantic_info.get_function_signature(id).unwrap();
+                let function_sig = self.semantic_info.get_function_signature(id);
                 let expected_arg_count = function_sig.params.len();
                 let received_arg_count = arg_types.len();
                 if received_arg_count == expected_arg_count {

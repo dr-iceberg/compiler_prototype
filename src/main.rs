@@ -15,7 +15,11 @@ use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = CompilerArgs::parse();
-    let file = SourceFile::new(args.inputs.first().unwrap())?;
+    let file = SourceFile::new(
+        args.inputs
+            .first()
+            .expect("For now only single file compilation is supported"),
+    )?;
     let mut lexer = Lexer::new(&file);
 
     match lexer.tokenize() {
