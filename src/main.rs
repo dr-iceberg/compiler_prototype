@@ -24,21 +24,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     match lexer.tokenize() {
         Ok(tokens) => {
-            //print_tokens(&tokens, &source);
-
             let mut parser = parser::Parser::new(tokens, &file);
             match parser.parse_program() {
                 Ok(program) => {
-                    // println!("{:#?}", program);
-                    // /*
                     let mut analyzer = SemanticAnalyzer::default();
                     match analyzer.check_program(&program) {
                         Ok(semantic_info) => {
-                            // /*
                             let ctx = Context::create();
                             let mut code_generator = CodeGen::new(&ctx, &semantic_info);
                             code_generator.compile_program(&program)?;
-                            // */
                         }
                         Err(errors) => {
                             for err in errors {
@@ -47,7 +41,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                             return Ok(());
                         }
                     }
-                    // */
                 }
                 Err(errors) => {
                     for err in errors {

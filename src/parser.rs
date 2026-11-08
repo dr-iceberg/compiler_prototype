@@ -1,10 +1,11 @@
 use std::{error::Error, fmt::Display, str::FromStr};
 
 use crate::{
+    ast::NodeId,
     file::SourceFile,
     grammar::{
-        BinOp, Decl, Expr, ExprId, ExprKind, Function, FunctionId, Literal, Parameter, ParameterId,
-        Program, Stmt, Type, UnaryOp, VariableId,
+        BinOp, Decl, DeclKind, Expr, ExprKind, Function, Literal, Parameter, Program, Stmt,
+        StmtKind, Type, UnaryOp,
     },
     tokenize::{Token, TokenType},
 };
@@ -14,7 +15,7 @@ pub struct Parser<'a> {
     pos: usize,
     errors: Vec<ParserError<'a>>,
     source: &'a SourceFile,
-    expr_id: usize,
+    next_node_id: NodeId,
 }
 
 impl<'a> Parser<'a> {
@@ -24,18 +25,14 @@ impl<'a> Parser<'a> {
             pos: 0,
             errors: Vec::new(),
             source,
-            expr_id: 0,
+            next_node_id: NodeId(0),
         }
     }
 
-    fn next_expr_id(&mut self) -> ExprId {
-        let id = ExprId::new(self.expr_id);
-        self.expr_id += 1;
+    fn next_node_id(&mut self) -> NodeId {
+        let id = self.next_node_id;
+        self.next_node_id.increment();
         id
-    }
-
-    fn make_expr(&mut self, kind: ExprKind) -> Expr {
-        Expr::new(self.next_expr_id(), kind)
     }
 
     #[must_use]
@@ -95,7 +92,10 @@ impl<'a> Parser<'a> {
             match token.ty {
                 TokenType::Fn => match self.parse_function() {
                     Some(function) => {
-                        decls.push(Decl::Function(function));
+                        decls.push(Decl {
+                            id: self.next_node_id(),
+                            kind: DeclKind::Function(function),
+                        });
                     }
                     None => {
                         self.skip_to_next_decl();
@@ -112,6 +112,7 @@ impl<'a> Parser<'a> {
         }
         if self.errors.is_empty() {
             Ok(Program {
+                id: self.next_node_id(),
                 declarations: decls,
             })
         } else {
@@ -131,17 +132,17 @@ impl<'a> Parser<'a> {
     #[must_use]
     fn parse_function(&mut self) -> Option<Function> {
         self.expect(TokenType::Fn)?;
-        let id = self
+        let name = self
             .expect(TokenType::Id)?
             .lexeme(self.source.source())
             .to_string();
-        let id = FunctionId::new(&id);
         let parameters = self.parse_params()?;
         let return_type = self.parse_function_return_type()?;
         let body = self.parse_function_body()?;
 
         Some(Function {
-            id,
+            id: self.next_node_id(),
+            name,
             parameters,
             body,
             return_type,
@@ -164,14 +165,17 @@ impl<'a> Parser<'a> {
 
     #[must_use]
     fn parse_param(&mut self) -> Option<Parameter> {
-        let id = self
+        let name = self
             .expect(TokenType::Id)?
             .lexeme(self.source.source())
             .to_string();
         self.expect(TokenType::Colon)?;
-        let id = ParameterId::new(&id);
         let ty = self.parse_type()?;
-        Some(Parameter { id, ty })
+        Some(Parameter {
+            id: self.next_node_id(),
+            name,
+            ty,
+        })
     }
 
     #[must_use]
@@ -244,15 +248,21 @@ impl<'a> Parser<'a> {
 
     fn parse_let_stmt(&mut self) -> Option<Stmt> {
         self.expect(TokenType::Let)?;
-        let id = self
+        let name = self
             .expect(TokenType::Id)?
             .lexeme(self.source.source())
             .to_string();
-        let id = VariableId::new(&id);
         self.expect(TokenType::Equal)?;
         let expr = self.parse_expr()?;
         self.expect(TokenType::Semicolon)?;
-        Some(Stmt::LetAssign { id, expr })
+        Some(Stmt {
+            id: self.next_node_id(),
+            kind: crate::grammar::StmtKind::LetAssign {
+                id: self.next_node_id(),
+                name,
+                expr,
+            },
+        })
     }
 
     #[must_use]
@@ -260,7 +270,10 @@ impl<'a> Parser<'a> {
         self.expect(TokenType::Return)?;
         let expr = self.parse_expr()?;
         self.expect(TokenType::Semicolon)?;
-        Some(Stmt::Return(expr))
+        Some(Stmt {
+            id: self.next_node_id(),
+            kind: StmtKind::Return(expr),
+        })
     }
 
     #[must_use]
@@ -288,7 +301,10 @@ impl<'a> Parser<'a> {
                 right: Box::new(right),
             };
 
-            expr = self.make_expr(kind);
+            expr = Expr {
+                id: self.next_node_id(),
+                kind,
+            };
         }
 
         Some(expr)
@@ -318,7 +334,10 @@ impl<'a> Parser<'a> {
                 right: Box::new(right),
             };
 
-            expr = self.make_expr(kind);
+            expr = Expr {
+                id: self.next_node_id(),
+                kind,
+            };
         }
 
         Some(expr)
@@ -343,7 +362,10 @@ impl<'a> Parser<'a> {
                 right: Box::new(right),
             };
 
-            expr = self.make_expr(kind);
+            expr = Expr {
+                id: self.next_node_id(),
+                kind,
+            };
         }
 
         Some(expr)
@@ -368,7 +390,10 @@ impl<'a> Parser<'a> {
                 right: Box::new(right),
             };
 
-            expr = self.make_expr(kind);
+            expr = Expr {
+                id: self.next_node_id(),
+                kind,
+            };
         }
 
         Some(expr)
@@ -381,14 +406,20 @@ impl<'a> Parser<'a> {
                 op: UnaryOp::Negate,
                 expr: Box::new(self.parse_unary()?),
             };
-            return Some(self.make_expr(kind));
+            return Some(Expr {
+                id: self.next_node_id(),
+                kind,
+            });
         }
         if self.match_token(TokenType::Bang) {
             let kind = ExprKind::Unary {
                 op: UnaryOp::Not,
                 expr: Box::new(self.parse_unary()?),
             };
-            return Some(self.make_expr(kind));
+            return Some(Expr {
+                id: self.next_node_id(),
+                kind,
+            });
         }
 
         self.parse_primary()
@@ -396,35 +427,51 @@ impl<'a> Parser<'a> {
 
     #[must_use]
     fn parse_primary(&mut self) -> Option<Expr> {
+        let id = self.next_node_id();
         match self.current()?.ty {
             TokenType::Int => {
                 let token = self.expect(TokenType::Int)?;
                 let val = self.get_token_value(&token)?;
-                Some(self.make_expr(ExprKind::Literal(Literal::Interger(val))))
+                Some(Expr {
+                    id,
+                    kind: ExprKind::Literal(Literal::Interger(val)),
+                })
             }
             TokenType::Float => {
                 let token = self.expect(TokenType::Float)?;
                 let val = self.get_token_value(&token)?;
-                Some(self.make_expr(ExprKind::Literal(Literal::Float(val))))
+                Some(Expr {
+                    id,
+                    kind: ExprKind::Literal(Literal::Float(val)),
+                })
             }
             TokenType::True => {
                 let token = self.expect(TokenType::True)?;
                 let val = self.get_token_value(&token)?;
-                Some(self.make_expr(ExprKind::Literal(Literal::Bool(val))))
+                Some(Expr {
+                    id,
+                    kind: ExprKind::Literal(Literal::Bool(val)),
+                })
             }
             TokenType::False => {
                 let token = self.expect(TokenType::False)?;
                 let val = self.get_token_value(&token)?;
-                Some(self.make_expr(ExprKind::Literal(Literal::Bool(val))))
+                Some(Expr {
+                    id,
+                    kind: ExprKind::Literal(Literal::Bool(val)),
+                })
             }
             TokenType::Str => {
                 let token = self.expect(TokenType::Str)?;
                 let val = self.get_token_value(&token)?;
-                Some(self.make_expr(ExprKind::Literal(Literal::String(val))))
+                Some(Expr {
+                    id,
+                    kind: ExprKind::Literal(Literal::String(val)),
+                })
             }
             TokenType::Id => {
                 let token = self.expect(TokenType::Id)?;
-                let id: String = self.get_token_value(&token)?;
+                let name: String = self.get_token_value(&token)?;
                 // function call
                 if self.match_token(TokenType::LPar) {
                     let mut args: Vec<Expr> = Vec::new();
@@ -436,11 +483,22 @@ impl<'a> Parser<'a> {
                         }
                         self.expect(TokenType::RPar)?;
                     }
-                    let id = FunctionId::new(&id);
-                    Some(self.make_expr(ExprKind::Call { id, args }))
+                    Some(Expr {
+                        id,
+                        kind: ExprKind::Call {
+                            id: self.next_node_id(),
+                            name,
+                            args,
+                        },
+                    })
                 } else {
-                    let id = VariableId::new(&id);
-                    Some(self.make_expr(ExprKind::Identifier(id)))
+                    Some(Expr {
+                        id,
+                        kind: ExprKind::Identifier {
+                            id: self.next_node_id(),
+                            name,
+                        },
+                    })
                 }
             }
             TokenType::LPar => {

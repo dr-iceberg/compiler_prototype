@@ -1,4 +1,8 @@
-use crate::grammar::{Expr, ExprId, FunctionId, Parameter, SymbolId, VariableId};
+use crate::{
+    ast::NodeId,
+    common::SemanticInfo,
+    grammar::{DeclKind, Expr, Parameter},
+};
 use std::{collections::HashMap, error::Error, fmt::Display};
 
 use crate::grammar::{BinOp, Decl, ExprKind, Function, Literal, Program, Stmt, Type, UnaryOp};
@@ -9,8 +13,8 @@ pub struct VariableInfo {
 }
 
 impl VariableInfo {
-    pub fn new(ty: &Type) -> Self {
-        Self { ty: ty.clone() }
+    pub fn new(ty: Type) -> Self {
+        Self { ty: ty }
     }
 
     pub fn ty(&self) -> &Type {
@@ -20,7 +24,7 @@ impl VariableInfo {
 
 #[derive(Debug, Clone, Default)]
 pub struct Scope {
-    variables: HashMap<VariableId, VariableInfo>,
+    variables: HashMap<NodeId, VariableInfo>,
 }
 
 impl Scope {
@@ -30,7 +34,7 @@ impl Scope {
         }
     }
 
-    pub fn add_variable(&mut self, id: &VariableId, info: &VariableInfo) {
+    pub fn add_variable(&mut self, id: &NodeId, info: &VariableInfo) {
         self.variables.insert(id.clone(), info.clone());
     }
 
@@ -41,13 +45,13 @@ impl Scope {
     pub fn add_function_params_to_scope(&mut self, params: &Vec<Parameter>) {
         for param in params {
             let id = param.id.clone().into();
-            let info = VariableInfo::new(&param.ty);
+            let info = VariableInfo::new(param.ty.clone());
             self.variables.insert(id, info);
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct FunctionSignature {
     params: Vec<Type>,
     return_type: Type,
@@ -68,66 +72,9 @@ impl FunctionSignature {
     pub fn return_type(&self) -> &Type {
         &self.return_type
     }
-}
 
-#[derive(Clone, Default)]
-pub struct SemanticInfo {
-    expr_types: Vec<Type>,
-    variable_types: HashMap<VariableId, Type>,
-    function_signatures: HashMap<FunctionId, FunctionSignature>,
-}
-impl SemanticInfo {
-    pub fn new() -> Self {
-        Self {
-            expr_types: Vec::new(),
-            variable_types: HashMap::new(),
-            function_signatures: HashMap::new(),
-        }
-    }
-
-    pub fn add_variable_type(&mut self, id: &VariableId, ty: &Type) {
-        self.variable_types.insert(id.clone(), ty.clone());
-    }
-
-    pub fn get_variable_type(&self, id: &VariableId) -> Option<&Type> {
-        self.variable_types.get(id)
-    }
-
-    pub fn add_expr_type(&mut self, id: &ExprId, ty: &Type) {
-        let index = id.index();
-
-        if index >= self.expr_types.len() {
-            self.expr_types.resize(index + 1, Type::Unknown);
-        }
-
-        self.expr_types[index] = ty.clone();
-    }
-
-    pub fn expr_type(&self, id: &ExprId) -> &Type {
-        &self.expr_types[id.index()]
-    }
-
-    pub fn get_function_signature(&self, id: &FunctionId) -> &FunctionSignature {
-        self.function_signatures
-            .get(id)
-            .expect("Could not retrieve function signature")
-    }
-
-    pub fn add_function_signature(
-        &mut self,
-        id: &FunctionId,
-        function_signature: &FunctionSignature,
-    ) {
-        self.function_signatures
-            .insert(id.clone(), function_signature.clone());
-    }
-
-    pub fn add_function_params(&mut self, params: &Vec<Parameter>) {
-        for param in params {
-            let id = param.id.clone().into();
-            let ty = param.ty.clone();
-            self.add_variable_type(&id, &ty);
-        }
+    pub(crate) fn as_ref(&self) -> Option<&FunctionSignature> {
+        todo!()
     }
 }
 
@@ -139,7 +86,7 @@ pub struct SemanticAnalyzer {
 impl SemanticAnalyzer {
     pub fn new() -> Self {
         Self {
-            semantic_info: SemanticInfo::new(),
+            semantic_info: SemanticInfo::default(),
             scopes: Vec::new(),
         }
     }
@@ -149,8 +96,8 @@ impl SemanticAnalyzer {
         let mut errors: Vec<SemanticError> = Vec::new();
         self.collect_function_signatures(&program.declarations);
         for decl in &program.declarations {
-            match decl {
-                Decl::Function(function) => {
+            match decl.kind {
+                DeclKind::Function(function) => {
                     if let Err(errs) = self.check_function(function) {
                         errors.extend(errs);
                     }
@@ -186,8 +133,8 @@ impl SemanticAnalyzer {
         None
     }
 
-    fn add_variable(&mut self, id: &VariableId, ty: &Type) {
-        let info = VariableInfo::new(ty);
+    fn add_variable(&mut self, id: &VariableId, ty: Type) {
+        let info = VariableInfo::new(ty.clone());
         let scope = self.get_current_scope();
         scope.add_variable(id, &info);
         self.semantic_info.add_variable_type(id, ty);
@@ -210,7 +157,7 @@ impl SemanticAnalyzer {
                     let function_signature =
                         FunctionSignature::new(params, function.return_type.clone());
                     self.semantic_info
-                        .add_function_signature(&function.id, &function_signature);
+                        .add_function_signature(&function.id, function_signature);
                 }
             }
         }
@@ -233,9 +180,9 @@ impl SemanticAnalyzer {
 
     fn check_function_statements(&mut self, function: &Function) -> Result<(), Vec<SemanticError>> {
         let mut errors: Vec<SemanticError> = Vec::new();
-        if let Err(err) = self.check_function_return_type(function) {
-            errors.push(err);
-        }
+        // if let Err(err) = self.check_function_return_type(function) {
+        //     errors.push(err);
+        // }
         for stmt in &function.body {
             match stmt {
                 Stmt::Return(expr) => {
@@ -243,7 +190,7 @@ impl SemanticAnalyzer {
                         errors.push(err);
                     }
                 }
-                Stmt::LetAssign { id, expr } => {
+                Stmt::LetAssign { id, expr, .. } => {
                     if let Err(err) = self.check_let_assign_stmt(id, expr) {
                         errors.push(err);
                     }
@@ -260,17 +207,13 @@ impl SemanticAnalyzer {
 
     fn check_let_assign_stmt(&mut self, id: &VariableId, expr: &Expr) -> Result<(), SemanticError> {
         let ty = self.infer_expr_type(expr)?;
-        self.add_variable(id, &ty);
+        self.add_variable(id, ty);
         Ok(())
     }
 
+    #[allow(unused)]
     fn check_function_return_type(&mut self, function: &Function) -> Result<(), SemanticError> {
-        if function.id.get() == "main" && function.return_type != Type::Int {
-            return Err(SemanticError::MainFunctionInvalidReturnType(
-                function.return_type.clone(),
-            ));
-        }
-        Ok(())
+        todo!()
     }
 
     fn check_function_return_stmt(
@@ -360,7 +303,7 @@ impl SemanticAnalyzer {
                     },
                 }
             }
-            ExprKind::Identifier(id) => {
+            ExprKind::Identifier { id, .. } => {
                 if let Some(info) = self.get_variable(id) {
                     info.ty().clone()
                 } else {
@@ -376,7 +319,10 @@ impl SemanticAnalyzer {
                 for arg in args {
                     arg_types.push(self.infer_expr_type(arg)?);
                 }
-                let function_sig = self.semantic_info.get_function_signature(id);
+                let function_sig = self
+                    .semantic_info
+                    .get_function_signature(id)
+                    .expect("Could not retrieve function signature");
                 let expected_arg_count = function_sig.params.len();
                 let received_arg_count = arg_types.len();
                 if received_arg_count == expected_arg_count {
@@ -399,7 +345,7 @@ impl SemanticAnalyzer {
                 }
             }
         };
-        self.semantic_info.add_expr_type(&id, &ty);
+        self.semantic_info.add_expr_type(&id, ty.clone());
         Ok(ty)
     }
 

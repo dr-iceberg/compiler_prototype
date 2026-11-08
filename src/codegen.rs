@@ -9,10 +9,10 @@ use inkwell::{
 };
 
 use crate::{
-    analyzer::SemanticInfo,
+    common::SemanticInfo,
     grammar::{
-        BinOp, Decl, Expr, ExprId, ExprKind, Function, FunctionId, Literal, Program, Stmt,
-        SymbolId, Type, UnaryOp, VariableId,
+        BinOp, Decl, Expr, ExprKind, Function, FunctionId, Literal, Program, Stmt, Type, UnaryOp,
+        VariableId,
     },
 };
 
@@ -79,7 +79,10 @@ impl<'ctx> CodeGen<'ctx> {
             }
         };
 
-        let function_signature = self.semantic_info.get_function_signature(&function.id);
+        let function_signature = self
+            .semantic_info
+            .get_function_signature(&function.id)
+            .expect("Could not retrieve function signature");
 
         let param_types: Vec<BasicMetadataTypeEnum> = function_signature
             .params()
@@ -91,7 +94,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         let llvm_function = self
             .module
-            .add_function(function.id.get(), function_type, None);
+            .add_function(&function.name, function_type, None);
         self.functions.insert(function.id.clone(), llvm_function);
 
         let entry = self.context.append_basic_block(llvm_function, "entry");
@@ -102,7 +105,7 @@ impl<'ctx> CodeGen<'ctx> {
             let param_value = llvm_function
                 .get_nth_param(i as u32)
                 .expect("Could not retrieve the ith function param");
-            param_value.set_name(param.id.get());
+            param_value.set_name(&param.name);
 
             let mut id: String = param.id.get().to_string();
             id.push_str(".addr"); // append ".addr" to distinguish between the SSA value
@@ -126,7 +129,7 @@ impl<'ctx> CodeGen<'ctx> {
         id: &FunctionId,
         args: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>, BuilderError> {
-        let function = *self
+        let function_value = *self
             .functions
             .get(id)
             .expect("Could not retrieve a FunctionValue");
@@ -134,7 +137,8 @@ impl<'ctx> CodeGen<'ctx> {
             .iter()
             .map(|arg| self.compile_expression(arg).into())
             .collect();
-        let val = self.builder.build_call(function, &args, id.get())?;
+
+        let val = self.builder.build_call(function_value, &args, "calltmp")?;
 
         Ok(val
             .try_as_basic_value()
@@ -150,9 +154,9 @@ impl<'ctx> CodeGen<'ctx> {
                     .build_return(Some(&value))
                     .expect("Could not build a return statement");
             }
-            Stmt::LetAssign { id, expr } => {
+            Stmt::LetAssign { id, name, expr } => {
                 let value = self.compile_expression(expr);
-                let ptr = self.builder.build_alloca(value.get_type(), id.get())?;
+                let ptr = self.builder.build_alloca(value.get_type(), name)?;
                 self.builder.build_store(ptr, value)?;
 
                 self.variables.insert(id.clone(), ptr);
@@ -162,14 +166,13 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    fn get_expr_type(&self, id: &ExprId) -> &Type {
-        self.semantic_info.expr_type(id)
-    }
-
     fn compile_expression(&self, expr: &Expr) -> BasicValueEnum<'ctx> {
         let id = expr.id();
         let kind = expr.kind();
-        let ty = self.get_expr_type(&id);
+        let ty = self
+            .semantic_info
+            .expr_type(&id)
+            .expect("Could not retrieve expression type");
         match kind {
             ExprKind::Literal(literal) => match literal {
                 Literal::Interger(value) => self
@@ -284,7 +287,7 @@ impl<'ctx> CodeGen<'ctx> {
                     Type::String | Type::Void | Type::Unknown => unimplemented!(),
                 }
             }
-            ExprKind::Identifier(id) => {
+            ExprKind::Identifier { id, name } => {
                 let ptr = self
                     .variables
                     .get(id)
@@ -298,7 +301,7 @@ impl<'ctx> CodeGen<'ctx> {
                     .build_load(
                         CodeGen::<'ctx>::type_into_type_enum(self.context, ty),
                         *ptr,
-                        id.get(),
+                        name,
                     )
                     .expect("Could not build load instruction")
             }
