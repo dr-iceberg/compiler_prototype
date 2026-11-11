@@ -122,18 +122,13 @@ pub enum DeclKind {
                         // later add things like struct declarations, constants, etc.
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum Type {
+    #[default]
     Unknown,
     Int,
     Float,
     Bool,
     String,
     Void,
-}
-
-impl Default for Type {
-    fn default() -> Self {
-        Self::Unknown
-    }
 }

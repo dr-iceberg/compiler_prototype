@@ -1,81 +1,38 @@
 use crate::{
     ast::NodeId,
     common::SemanticInfo,
-    grammar::{DeclKind, Expr, Parameter},
+    grammar::{DeclKind, Expr, Parameter, StmtKind},
 };
 use std::{collections::HashMap, error::Error, fmt::Display};
 
 use crate::grammar::{BinOp, Decl, ExprKind, Function, Literal, Program, Stmt, Type, UnaryOp};
 
-#[derive(Debug, Clone)]
-pub struct VariableInfo {
-    ty: Type,
-}
-
-impl VariableInfo {
-    pub fn new(ty: Type) -> Self {
-        Self { ty: ty }
-    }
-
-    pub fn ty(&self) -> &Type {
-        &self.ty
-    }
-}
-
+/// Scope holds symbol names (`String`) and corresponding `NodeId`'s
 #[derive(Debug, Clone, Default)]
 pub struct Scope {
-    variables: HashMap<NodeId, VariableInfo>,
+    symbols: HashMap<String, NodeId>,
 }
 
 impl Scope {
-    pub fn new() -> Self {
-        Self {
-            variables: Default::default(),
-        }
+    pub fn add_symbol(&mut self, name: String, id: NodeId) {
+        self.symbols.insert(name, id);
     }
 
-    pub fn add_variable(&mut self, id: &NodeId, info: &VariableInfo) {
-        self.variables.insert(id.clone(), info.clone());
+    pub fn get_symbol(&self, name: &String) -> Option<&NodeId> {
+        self.symbols.get(name)
     }
 
-    pub fn get_variable(&self, id: &VariableId) -> Option<&VariableInfo> {
-        self.variables.get(id)
-    }
-
-    pub fn add_function_params_to_scope(&mut self, params: &Vec<Parameter>) {
+    pub fn add_function_params_to_scope(&mut self, params: &[Parameter]) {
         for param in params {
-            let id = param.id.clone().into();
-            let info = VariableInfo::new(param.ty.clone());
-            self.variables.insert(id, info);
+            self.add_symbol(param.name.clone(), param.id);
         }
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct FunctionSignature {
-    params: Vec<Type>,
-    return_type: Type,
-}
-
-impl FunctionSignature {
-    pub fn new(params: Vec<Type>, return_type: Type) -> Self {
-        Self {
-            params,
-            return_type,
-        }
-    }
-
-    pub fn params(&self) -> &[Type] {
-        &self.params
-    }
-
-    pub fn return_type(&self) -> &Type {
-        &self.return_type
-    }
-
-    pub(crate) fn as_ref(&self) -> Option<&FunctionSignature> {
-        todo!()
-    }
+    pub params: Vec<Type>,
+    pub return_type: Type,
 }
 
 pub struct SemanticAnalyzer {
@@ -96,7 +53,7 @@ impl SemanticAnalyzer {
         let mut errors: Vec<SemanticError> = Vec::new();
         self.collect_function_signatures(&program.declarations);
         for decl in &program.declarations {
-            match decl.kind {
+            match &decl.kind {
                 DeclKind::Function(function) => {
                     if let Err(errs) = self.check_function(function) {
                         errors.extend(errs);
@@ -113,7 +70,7 @@ impl SemanticAnalyzer {
     }
 
     fn enter_scope(&mut self) {
-        self.scopes.push(Scope::new());
+        self.scopes.push(Scope::default());
     }
 
     fn leave_scope(&mut self) {
@@ -124,23 +81,22 @@ impl SemanticAnalyzer {
         self.scopes.last_mut().expect("Could not retrieve a scope")
     }
 
-    fn get_variable(&mut self, id: &VariableId) -> Option<&VariableInfo> {
-        for scope in &self.scopes {
-            if let Some(info) = scope.get_variable(id) {
-                return Some(info);
+    fn resolve_symbol(&self, name: &String) -> Option<&NodeId> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(id) = scope.get_symbol(name) {
+                return Some(id);
             }
         }
         None
     }
 
-    fn add_variable(&mut self, id: &VariableId, ty: Type) {
-        let info = VariableInfo::new(ty.clone());
+    fn add_variable(&mut self, id: NodeId, name: String, ty: Type) {
         let scope = self.get_current_scope();
-        scope.add_variable(id, &info);
-        self.semantic_info.add_variable_type(id, ty);
+        scope.add_symbol(name, id);
+        self.semantic_info.add_type(id, ty);
     }
 
-    fn add_params(&mut self, params: &Vec<Parameter>) {
+    fn add_params(&mut self, params: &[Parameter]) {
         self.get_current_scope()
             .add_function_params_to_scope(params);
         self.semantic_info.add_function_params(params);
@@ -148,16 +104,18 @@ impl SemanticAnalyzer {
 
     fn collect_function_signatures(&mut self, declatarations: &Vec<Decl>) {
         for decl in declatarations {
-            match decl {
-                Decl::Function(function) => {
+            match &decl.kind {
+                DeclKind::Function(function) => {
                     let mut params: Vec<Type> = Vec::new();
                     for param in &function.parameters {
                         params.push(param.ty.clone());
                     }
-                    let function_signature =
-                        FunctionSignature::new(params, function.return_type.clone());
+                    let function_signature = FunctionSignature {
+                        params,
+                        return_type: function.return_type.clone(),
+                    };
                     self.semantic_info
-                        .add_function_signature(&function.id, function_signature);
+                        .add_function_signature(function.id, function_signature);
                 }
             }
         }
@@ -184,18 +142,20 @@ impl SemanticAnalyzer {
         //     errors.push(err);
         // }
         for stmt in &function.body {
-            match stmt {
-                Stmt::Return(expr) => {
+            match &stmt.kind {
+                StmtKind::Return(expr) => {
                     if let Err(err) = self.check_function_return_stmt(function, expr) {
                         errors.push(err);
                     }
                 }
-                Stmt::LetAssign { id, expr, .. } => {
-                    if let Err(err) = self.check_let_assign_stmt(id, expr) {
+                StmtKind::LetAssign { id, name, expr } => {
+                    if let Err(err) = self.check_let_assign_stmt(id, name.clone(), expr) {
                         errors.push(err);
                     }
                 }
-                Stmt::Expr(_) => {}
+                StmtKind::Expr(_) => {
+                    unimplemented!()
+                }
             }
         }
         if errors.is_empty() {
@@ -205,9 +165,14 @@ impl SemanticAnalyzer {
         }
     }
 
-    fn check_let_assign_stmt(&mut self, id: &VariableId, expr: &Expr) -> Result<(), SemanticError> {
+    fn check_let_assign_stmt(
+        &mut self,
+        id: &NodeId,
+        name: String,
+        expr: &Expr,
+    ) -> Result<(), SemanticError> {
         let ty = self.infer_expr_type(expr)?;
-        self.add_variable(id, ty);
+        self.add_variable(*id, name, ty);
         Ok(())
     }
 
@@ -225,7 +190,7 @@ impl SemanticAnalyzer {
             Ok(actual_type) => {
                 if actual_type != function.return_type {
                     return Err(SemanticError::FunctionReturnTypeMismatch(
-                        function.id.clone(),
+                        function.name.clone(),
                     ));
                 }
             }
@@ -237,9 +202,7 @@ impl SemanticAnalyzer {
     }
 
     fn infer_expr_type(&mut self, expr: &Expr) -> Result<Type, SemanticError> {
-        let kind = expr.kind();
-        let id = expr.id();
-        let ty = match kind {
+        let ty = match &expr.kind {
             ExprKind::Literal(literal) => match literal {
                 Literal::Interger(_) => Type::Int,
                 Literal::Float(_) => Type::Float,
@@ -249,12 +212,18 @@ impl SemanticAnalyzer {
             ExprKind::Binary { left, op, right } => {
                 let lhs = self.infer_expr_type(left)?;
                 let rhs = self.infer_expr_type(right)?;
-                match *op {
+                match op {
                     BinOp::Add => match (lhs.clone(), rhs.clone()) {
                         (Type::Int, Type::Int) => Type::Int,
                         (Type::Float, Type::Float) => Type::Float,
                         (Type::String, Type::String) => Type::String,
-                        _ => return Err(SemanticError::TypeMismatchInExpr(lhs, rhs, kind.clone())),
+                        _ => {
+                            return Err(SemanticError::TypeMismatchInExpr(
+                                lhs,
+                                rhs,
+                                expr.kind.clone(),
+                            ));
+                        }
                     },
                     BinOp::Subtract | BinOp::Multiply | BinOp::Divide => {
                         match (lhs.clone(), rhs.clone()) {
@@ -264,7 +233,7 @@ impl SemanticAnalyzer {
                                 return Err(SemanticError::TypeMismatchInExpr(
                                     lhs,
                                     rhs,
-                                    kind.clone(),
+                                    expr.kind.clone(),
                                 ));
                             }
                         }
@@ -277,7 +246,7 @@ impl SemanticAnalyzer {
                                 return Err(SemanticError::TypeMismatchInExpr(
                                     lhs,
                                     rhs,
-                                    kind.clone(),
+                                    expr.kind.clone(),
                                 ));
                             }
                         }
@@ -286,13 +255,19 @@ impl SemanticAnalyzer {
                         (Type::Int, Type::Int) => Type::Bool,
                         (Type::Float, Type::Float) => Type::Bool,
                         (Type::Bool, Type::Bool) => Type::Bool,
-                        _ => return Err(SemanticError::TypeMismatchInExpr(lhs, rhs, kind.clone())),
+                        _ => {
+                            return Err(SemanticError::TypeMismatchInExpr(
+                                lhs,
+                                rhs,
+                                expr.kind.clone(),
+                            ));
+                        }
                     },
                 }
             }
             ExprKind::Unary { op, expr } => {
                 let ty = self.infer_expr_type(expr)?;
-                match *op {
+                match op {
                     UnaryOp::Negate => match ty {
                         Type::Int | Type::Float => ty,
                         _ => return Err(SemanticError::InvalidUnaryOperand(op.clone(), ty)),
@@ -303,25 +278,30 @@ impl SemanticAnalyzer {
                     },
                 }
             }
-            ExprKind::Identifier { id, .. } => {
-                if let Some(info) = self.get_variable(id) {
-                    info.ty().clone()
+            ExprKind::Identifier { id: _, name } => {
+                let resolved_id = self.resolve_symbol(name);
+                if let Some(resolved_id) = resolved_id {
+                    self.semantic_info
+                        .get_type(resolved_id)
+                        .expect("Could not resolve symbol")
+                        .clone()
                 } else {
                     return Err(SemanticError::UnknownVariableInExpr(
-                        id.clone(),
-                        kind.clone(),
+                        name.clone(),
+                        expr.kind.clone(),
                     ));
                 }
             }
-            ExprKind::Call { id, args } => {
+            ExprKind::Call { id: _, name, args } => {
                 //todo!("Check if provided argument types match the function argument types")
                 let mut arg_types: Vec<Type> = Vec::new();
                 for arg in args {
                     arg_types.push(self.infer_expr_type(arg)?);
                 }
+                let resolved_id = self.resolve_symbol(name).expect("Could not resolve symbol");
                 let function_sig = self
                     .semantic_info
-                    .get_function_signature(id)
+                    .get_function_signature(resolved_id)
                     .expect("Could not retrieve function signature");
                 let expected_arg_count = function_sig.params.len();
                 let received_arg_count = arg_types.len();
@@ -329,7 +309,7 @@ impl SemanticAnalyzer {
                     for (i, ty) in arg_types.iter().enumerate() {
                         if *ty != function_sig.params[i] {
                             return Err(SemanticError::IncorrectFunctionArgumentType(
-                                kind.clone(),
+                                expr.kind.clone(),
                                 function_sig.params[i].clone(),
                                 arg_types[i].clone(),
                             ));
@@ -338,14 +318,14 @@ impl SemanticAnalyzer {
                     function_sig.return_type.clone()
                 } else {
                     return Err(SemanticError::InvalidNumberOfFunctionArguments(
-                        kind.clone(),
+                        expr.kind.clone(),
                         expected_arg_count,
                         received_arg_count,
                     ));
                 }
             }
         };
-        self.semantic_info.add_expr_type(&id, ty.clone());
+        self.semantic_info.add_type(expr.id, ty.clone());
         Ok(ty)
     }
 
@@ -363,12 +343,12 @@ impl Default for SemanticAnalyzer {
 
 #[derive(Debug)]
 pub enum SemanticError {
-    FunctionReturnTypeMismatch(FunctionId),
+    FunctionReturnTypeMismatch(String),
     MainFunctionInvalidReturnType(Type),
     InvalidBinaryOperands(BinOp, Type, Type),
     TypeMismatchInExpr(Type, Type, ExprKind),
     InvalidUnaryOperand(UnaryOp, Type),
-    UnknownVariableInExpr(VariableId, ExprKind),
+    UnknownVariableInExpr(String, ExprKind),
     InvalidNumberOfFunctionArguments(ExprKind, usize, usize),
     IncorrectFunctionArgumentType(ExprKind, Type, Type),
 }
@@ -377,7 +357,6 @@ impl Display for SemanticError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::FunctionReturnTypeMismatch(id) => {
-                let id = id.get();
                 write!(f, "Return type mismatch in function {id}")
             }
             Self::MainFunctionInvalidReturnType(ty) => {
