@@ -46,7 +46,6 @@ which will output the executable.
 
 The project is still not finished and there are some missing features I would like to add:
 
-- Proper symbol name resolution in semantic analysis
 - Internally invoking clang to produce the executable
 - Better CLI interface
 - Better error messages

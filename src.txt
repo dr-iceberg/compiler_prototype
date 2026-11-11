@@ -1,7 +1,13 @@
 fn a(a: int) -> int {
-    return a + 1;
+    let x = 4 / 2;
+    return a * x;
+}
+
+fn b(a: int) -> int {
+    let x = 6 / 2;
+    return a * x;
 }
 
 fn main() -> int {
-    return a(2);
+    return a(2) + b(3);
 }

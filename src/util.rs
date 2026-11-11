@@ -7,6 +7,16 @@ fn print_tokens(tokens: &Vec<Token>, source: &str) {
     }
 }
 
+pub fn slice_get_pair<'a, T1, T2>(elements: &'a [(T1, T2)], id: &T1) -> Option<&'a T2>
+where
+    T1: Eq,
+{
+    elements
+        .iter()
+        .find(|pair| pair.0 == *id)
+        .map(|pair| &pair.1)
+}
+
 #[allow(unused)]
 pub fn vec_insert_with_padding<T: Default>(v: &mut Vec<T>, index: usize, value: T) {
     if index >= v.len() {

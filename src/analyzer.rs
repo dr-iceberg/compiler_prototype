@@ -55,6 +55,8 @@ impl SemanticAnalyzer {
         for decl in &program.declarations {
             match &decl.kind {
                 DeclKind::Function(function) => {
+                    self.get_current_scope()
+                        .add_symbol(function.name.clone(), function.id);
                     if let Err(errs) = self.check_function(function) {
                         errors.extend(errs);
                     }
@@ -278,13 +280,16 @@ impl SemanticAnalyzer {
                     },
                 }
             }
-            ExprKind::Identifier { id: _, name } => {
+            ExprKind::Identifier { id, name } => {
                 let resolved_id = self.resolve_symbol(name);
                 if let Some(resolved_id) = resolved_id {
-                    self.semantic_info
+                    let ty = self
+                        .semantic_info
                         .get_type(resolved_id)
                         .expect("Could not resolve symbol")
-                        .clone()
+                        .clone();
+                    self.semantic_info.add_resolved_symbol(*id, *resolved_id);
+                    ty
                 } else {
                     return Err(SemanticError::UnknownVariableInExpr(
                         name.clone(),
@@ -292,7 +297,7 @@ impl SemanticAnalyzer {
                     ));
                 }
             }
-            ExprKind::Call { id: _, name, args } => {
+            ExprKind::Call { id, name, args } => {
                 //todo!("Check if provided argument types match the function argument types")
                 let mut arg_types: Vec<Type> = Vec::new();
                 for arg in args {
@@ -303,6 +308,7 @@ impl SemanticAnalyzer {
                     .semantic_info
                     .get_function_signature(resolved_id)
                     .expect("Could not retrieve function signature");
+                let ty = function_sig.return_type.clone();
                 let expected_arg_count = function_sig.params.len();
                 let received_arg_count = arg_types.len();
                 if received_arg_count == expected_arg_count {
@@ -315,7 +321,8 @@ impl SemanticAnalyzer {
                             ));
                         }
                     }
-                    function_sig.return_type.clone()
+                    self.semantic_info.add_resolved_symbol(*id, *resolved_id);
+                    ty
                 } else {
                     return Err(SemanticError::InvalidNumberOfFunctionArguments(
                         expr.kind.clone(),

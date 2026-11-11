@@ -130,9 +130,13 @@ impl<'ctx> CodeGen<'ctx> {
         name: &str,
         args: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>, BuilderError> {
+        let resolved_id = self
+            .semantic_info
+            .get_resolved_symbol(id)
+            .expect("Could not resolve symbol in call");
         let function_value = *self
             .functions
-            .get(id)
+            .get(resolved_id)
             .expect("Could not retrieve a FunctionValue");
         let args: Vec<BasicMetadataValueEnum> = args
             .iter()
@@ -288,19 +292,23 @@ impl<'ctx> CodeGen<'ctx> {
                 }
             }
             ExprKind::Identifier { id, name } => {
-                todo!(
-                    "this is wrong and has to be fixed
-                    id and name are referring to this ast node
-                    instead use name resolution and find which
-                    identifier this node is referring to"
-                );
+                // todo!(
+                //     "this is wrong and has to be fixed
+                //     id and name are referring to this ast node
+                //     instead use name resolution and find which
+                //     identifier this node is referring to"
+                // );
+                let resolved_id = self
+                    .semantic_info
+                    .get_resolved_symbol(id)
+                    .expect("Could not resolve symbol");
                 let ptr = self
                     .variables
-                    .get(id)
+                    .get(resolved_id)
                     .expect("Could not find the variable with specified id");
                 let ty = self
                     .semantic_info
-                    .get_type(id)
+                    .get_type(resolved_id)
                     .expect("Could not get the type of the variable with specified id");
 
                 self.builder
