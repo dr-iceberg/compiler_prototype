@@ -5,6 +5,7 @@ fn a(a: int) -> int {
 
 fn b(a: int) -> int {
     let x = 6 / 2;
+    let x = 5;
     return a * x;
 }
 

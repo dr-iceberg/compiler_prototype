@@ -14,18 +14,33 @@ pub struct Scope {
 }
 
 impl Scope {
-    pub fn add_symbol(&mut self, name: String, id: NodeId) {
+    /// Adds a symbol to scope. If a symbol with that name already exists
+    /// it returns a `SemanticError` and doesn't do anything.
+    pub fn add_symbol(&mut self, name: String, id: NodeId) -> Result<(), SemanticError> {
+        if self.symbols.contains_key(&name) {
+            return Err(SemanticError::SymbolDefinedMultipleTimes(name));
+        }
+        self.symbols.insert(name, id);
+        Ok(())
+    }
+
+    /// Same as `add_symbol` but allows shadowing
+    pub fn add_symbol_shadow(&mut self, name: String, id: NodeId) {
         self.symbols.insert(name, id);
     }
 
-    pub fn get_symbol(&self, name: &String) -> Option<&NodeId> {
+    pub fn get_symbol(&self, name: &str) -> Option<&NodeId> {
         self.symbols.get(name)
     }
 
-    pub fn add_function_params_to_scope(&mut self, params: &[Parameter]) {
+    pub fn add_function_params_to_scope(
+        &mut self,
+        params: &[Parameter],
+    ) -> Result<(), SemanticError> {
         for param in params {
-            self.add_symbol(param.name.clone(), param.id);
+            self.add_symbol(param.name.clone(), param.id)?;
         }
+        Ok(())
     }
 }
 
@@ -55,8 +70,12 @@ impl SemanticAnalyzer {
         for decl in &program.declarations {
             match &decl.kind {
                 DeclKind::Function(function) => {
-                    self.get_current_scope()
-                        .add_symbol(function.name.clone(), function.id);
+                    if let Err(error) = self
+                        .get_current_scope()
+                        .add_symbol(function.name.clone(), function.id)
+                    {
+                        errors.push(error);
+                    }
                     if let Err(errs) = self.check_function(function) {
                         errors.extend(errs);
                     }
@@ -83,7 +102,7 @@ impl SemanticAnalyzer {
         self.scopes.last_mut().expect("Could not retrieve a scope")
     }
 
-    fn resolve_symbol(&self, name: &String) -> Option<&NodeId> {
+    fn resolve_symbol(&self, name: &str) -> Option<&NodeId> {
         for scope in self.scopes.iter().rev() {
             if let Some(id) = scope.get_symbol(name) {
                 return Some(id);
@@ -94,14 +113,15 @@ impl SemanticAnalyzer {
 
     fn add_variable(&mut self, id: NodeId, name: String, ty: Type) {
         let scope = self.get_current_scope();
-        scope.add_symbol(name, id);
+        scope.add_symbol_shadow(name, id);
         self.semantic_info.add_type(id, ty);
     }
 
-    fn add_params(&mut self, params: &[Parameter]) {
+    fn add_params(&mut self, params: &[Parameter]) -> Result<(), SemanticError> {
         self.get_current_scope()
-            .add_function_params_to_scope(params);
+            .add_function_params_to_scope(params)?;
         self.semantic_info.add_function_params(params);
+        Ok(())
     }
 
     fn collect_function_signatures(&mut self, declatarations: &Vec<Decl>) {
@@ -126,7 +146,9 @@ impl SemanticAnalyzer {
     fn check_function(&mut self, function: &Function) -> Result<(), Vec<SemanticError>> {
         let mut errors: Vec<SemanticError> = Vec::new();
         self.enter_scope();
-        self.add_params(&function.parameters);
+        if let Err(error) = self.add_params(&function.parameters) {
+            errors.push(error);
+        }
         if let Err(errs) = self.check_function_statements(function) {
             errors.extend(errs);
         }
@@ -303,7 +325,9 @@ impl SemanticAnalyzer {
                 for arg in args {
                     arg_types.push(self.infer_expr_type(arg)?);
                 }
-                let resolved_id = self.resolve_symbol(name).expect("Could not resolve symbol");
+                let resolved_id = self
+                    .resolve_symbol(name)
+                    .ok_or(SemanticError::SymbolNotDefined(name.clone()))?;
                 let function_sig = self
                     .semantic_info
                     .get_function_signature(resolved_id)
@@ -358,6 +382,8 @@ pub enum SemanticError {
     UnknownVariableInExpr(String, ExprKind),
     InvalidNumberOfFunctionArguments(ExprKind, usize, usize),
     IncorrectFunctionArgumentType(ExprKind, Type, Type),
+    SymbolDefinedMultipleTimes(String),
+    SymbolNotDefined(String),
 }
 
 impl Display for SemanticError {
@@ -415,6 +441,12 @@ impl Display for SemanticError {
                     "Incorrect argument type in function {:#?}\nexpected {:#?}\ngot: {:#?}",
                     expr, expected, got
                 )
+            }
+            Self::SymbolDefinedMultipleTimes(name) => {
+                write!(f, "Symbol {:#?} was already defined", name)
+            }
+            Self::SymbolNotDefined(name) => {
+                write!(f, "Symbol {:#?} is undefined", name)
             }
         }
     }
